@@ -851,11 +851,21 @@ async function calcSettlement(){
 window.addCheck=async(type)=>{
   if(type==='luggage'){
     const item=v('lug-item'),cat=v('lug-cat');if(!item)return;
-    await addDoc(collection(db,`trips/${currentTripId}/luggage`),{item,cat,done:false,createdAt:serverTimestamp()});
+    await addDoc(collection(db,`trips/${currentTripId}/luggage`),{
+      item,cat,done:false,
+      uid:currentUser.uid,
+      ownerName:currentUser.displayName||currentUser.email,
+      createdAt:serverTimestamp()
+    });
     sv('lug-item','');
   } else {
     const item=v('shop-item'),budget=v('shop-budget');if(!item)return;
-    await addDoc(collection(db,`trips/${currentTripId}/shopping`),{item,budget:budget?parseInt(budget):null,done:false,createdAt:serverTimestamp()});
+    await addDoc(collection(db,`trips/${currentTripId}/shopping`),{
+      item,budget:budget?parseInt(budget):null,done:false,
+      uid:currentUser.uid,
+      ownerName:currentUser.displayName||currentUser.email,
+      createdAt:serverTimestamp()
+    });
     sv('shop-item','');sv('shop-budget','');
   }
 };
@@ -864,13 +874,16 @@ window.toggleCheck=async(type,id,done)=>{
   await updateDoc(doc(db,`trips/${currentTripId}/${type}`,id),{done:!done});
 };
 
-window.delCheck=async(type,id)=>{
+window.delCheck=async(type,id,ownerUid)=>{
+  if(ownerUid && ownerUid !== currentUser.uid){ showToast('只能刪除自己新增的項目'); return; }
   await deleteDoc(doc(db,`trips/${currentTripId}/${type}`,id));
 };
 
 async function renderChecklist(type){
   const snap=await getDocs(collection(db,`trips/${currentTripId}/${type}`));
-  const arr=[];snap.forEach(d=>arr.push({id:d.id,...d.data()}));
+  const all=[];snap.forEach(d=>all.push({id:d.id,...d.data()}));
+  // 只顯示自己的
+  const arr=all.filter(x=>!x.uid || x.uid===currentUser.uid);
   const listEl=document.getElementById(type==='luggage'?'lug-list':'shop-list');
   const fillEl=document.getElementById(type==='luggage'?'lug-fill':'shop-fill');
   const statEl=document.getElementById(type==='luggage'?'lug-stat':'shop-stat');
@@ -878,7 +891,7 @@ async function renderChecklist(type){
   const pct=arr.length?Math.round(done/arr.length*100):0;
   fillEl.style.width=pct+'%';
   statEl.textContent=done+' / '+arr.length+' 完成（'+pct+'%）';
-  if(!arr.length){listEl.innerHTML='<div class="empty"><div class="empty-icon">'+(type==='luggage'?'🧳':'🛒')+'</div>清單是空的</div>';return;}
+  if(!arr.length){listEl.innerHTML='<div class="empty"><div class="empty-icon">'+(type==='luggage'?'🧳':'🛒')+'</div>還沒有項目<br>新增屬於你的清單吧！</div>';return;}
   if(type==='luggage'){
     const cats={};arr.forEach(x=>{if(!cats[x.cat])cats[x.cat]=[];cats[x.cat].push(x);});
     listEl.innerHTML=Object.entries(cats).map(([cat,items])=>`
@@ -888,7 +901,7 @@ async function renderChecklist(type){
           <div class="check-item">
             <div class="check-box${x.done?' checked':''}" onclick="toggleCheck('luggage','${x.id}',${x.done})"></div>
             <div class="check-label${x.done?' done':''}" onclick="toggleCheck('luggage','${x.id}',${x.done})">${esc(x.item)}</div>
-            <button class="check-del" onclick="delCheck('luggage','${x.id}')">×</button>
+            <button class="check-del" onclick="delCheck('luggage','${x.id}','${x.uid||''}')">×</button>
           </div>`).join('')}
       </div>`).join('');
   } else {
@@ -899,7 +912,7 @@ async function renderChecklist(type){
           <div class="check-label${x.done?' done':''}">${esc(x.item)}</div>
           ${x.budget?`<div class="check-budget">預算 NT$${x.budget.toLocaleString()}</div>`:''}
         </div>
-        <button class="check-del" onclick="delCheck('shopping','${x.id}')">×</button>
+        <button class="check-del" onclick="delCheck('shopping','${x.id}','${x.uid||''}')">×</button>
       </div>`).join('')+'</div>';
   }
 }
