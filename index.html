@@ -222,6 +222,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--border2)
 .member-role{font-size:11px;color:var(--text2);margin-top:1px}
 .member-del{padding:4px 10px;border:none;background:transparent;color:var(--red);font-size:20px;cursor:pointer}
 .manage-btn{padding:7px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-weight:500;cursor:pointer;color:var(--text);white-space:nowrap}
+.edit-btn{padding:7px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-weight:500;cursor:pointer;color:var(--text);white-space:nowrap}
+.edit-btn:active{opacity:.75}
 .manage-btn:active{opacity:.75}
 </style>
 </head>
@@ -279,7 +281,10 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--border2)
   <div class="header">
     <div class="header-inner">
       <div class="header-left">
-        <div class="trip-name" id="h-name"></div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="trip-name" id="h-name"></div>
+          <button class="edit-btn" onclick="showEditTripModal()" style="padding:4px 10px;font-size:12px">編輯</button>
+        </div>
         <div class="trip-sub" id="h-sub"></div>
       </div>
       <img class="avatar" id="main-avatar" src="" alt="" onclick="backToTrips()" title="回到行程列表" />
@@ -423,6 +428,23 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--border2)
   </div>
 </div>
 
+<!-- Edit trip modal -->
+<div class="modal-overlay" id="edit-trip-modal" onclick="closeEditTripModal(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">編輯行程</div>
+    <div class="field"><div class="field-label">旅行名稱</div><input type="text" id="e-name" placeholder="例：東京五天四夜" /></div>
+    <div class="field"><div class="field-label">目的地</div><input type="text" id="e-dest" placeholder="例：日本東京" /></div>
+    <div class="field-row">
+      <div class="field"><div class="field-label">出發日期</div><input type="date" id="e-start" /></div>
+      <div class="field"><div class="field-label">回程日期</div><input type="date" id="e-end" /></div>
+    </div>
+    <div id="e-days-hint" style="font-size:12px;color:var(--text2);margin-bottom:8px"></div>
+    <button class="btn-primary" onclick="saveEditTrip()">儲存變更</button>
+    <button class="btn-secondary" onclick="closeEditTripModal()">取消</button>
+  </div>
+</div>
+
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
@@ -562,7 +584,7 @@ window.createTrip = async () => {
   const days=Math.max(1,Math.round((new Date(end)-new Date(start))/86400000)+1);
   const inviteCode=Math.random().toString(36).substring(2,8).toUpperCase();
   try{
-    await addDoc(collection(db,'trips'),{
+    const tripRef = await addDoc(collection(db,'trips'),{
       name,dest,start,end,days,inviteCode,
       members:[currentUser.uid],
       memberNames:[currentUser.displayName||currentUser.email],
@@ -570,6 +592,8 @@ window.createTrip = async () => {
       createdBy:currentUser.uid,
       createdAt:serverTimestamp()
     });
+    // 建立邀請碼索引（公開可讀）
+    await setDoc(doc(db,'inviteCodes',inviteCode),{tripId:tripRef.id});
     hideNewTripModal();
     sv('m-name','');sv('m-dest','');sv('m-start','');sv('m-end','');
     showToast('行程建立成功！');
@@ -580,20 +604,25 @@ window.createTrip = async () => {
 window.joinTrip = async () => {
   const code=v('join-code-input').trim().toUpperCase();
   if(!code||code.length<4){showToast('請輸入邀請碼');return;}
-  const q=query(collection(db,'trips'),where('inviteCode','==',code));
-  const snap=await getDocs(q);
-  if(snap.empty){showToast('找不到此邀請碼');return;}
-  const d=snap.docs[0];
-  const t=d.data();
-  if(t.members.includes(currentUser.uid)){showToast('你已加入此行程');openTrip(d.id,t);return;}
-  await updateDoc(doc(db,'trips',d.id),{
-    members:arrayUnion(currentUser.uid),
-    memberNames:arrayUnion(currentUser.displayName||currentUser.email),
-    memberPhotos:arrayUnion(currentUser.photoURL||'')
-  });
-  sv('join-code-input','');
-  showToast('成功加入行程！');
-  openTrip(d.id,{...t,members:[...t.members,currentUser.uid],memberNames:[...(t.memberNames||[]),currentUser.displayName||currentUser.email]});
+  try{
+    // 先查公開的 inviteCodes collection 取得 tripId
+    const codeDoc=await getDoc(doc(db,'inviteCodes',code));
+    if(!codeDoc.exists()){showToast('找不到此邀請碼');return;}
+    const tripId=codeDoc.data().tripId;
+    // 加入成員後才有權限讀 trip
+    await updateDoc(doc(db,'trips',tripId),{
+      members:arrayUnion(currentUser.uid),
+      memberNames:arrayUnion(currentUser.displayName||currentUser.email),
+      memberPhotos:arrayUnion(currentUser.photoURL||'')
+    });
+    const tripSnap=await getDoc(doc(db,'trips',tripId));
+    const t=tripSnap.data();
+    sv('join-code-input','');
+    showToast('成功加入行程！');
+    openTrip(tripId,t);
+  }catch(e){
+    showToast('加入失敗：'+e.message);
+  }
 };
 
 // ── Open trip ─────────────────────────────────────
@@ -697,6 +726,59 @@ ${url}`;
     navigator.share({title:'旅行邀請', text});
   } else {
     navigator.clipboard?.writeText(text).then(()=>showToast('已複製邀請訊息！'));
+  }
+};
+
+window.showEditTripModal=()=>{
+  // 只有建立者可以編輯
+  if(currentTrip.createdBy !== currentUser.uid){
+    showToast('只有行程建立者可以編輯');return;
+  }
+  document.getElementById('e-name').value = currentTrip.name||'';
+  document.getElementById('e-dest').value = currentTrip.dest||'';
+  document.getElementById('e-start').value = currentTrip.start||'';
+  document.getElementById('e-end').value = currentTrip.end||'';
+  updateDaysHint();
+  document.getElementById('edit-trip-modal').classList.add('show');
+};
+
+function updateDaysHint(){
+  const s=document.getElementById('e-start').value;
+  const e=document.getElementById('e-end').value;
+  const hint=document.getElementById('e-days-hint');
+  if(s&&e){
+    const days=Math.max(1,Math.round((new Date(e)-new Date(s))/86400000)+1);
+    hint.textContent=`共 ${days} 天`;
+  } else { hint.textContent=''; }
+}
+document.getElementById('e-start')?.addEventListener('change',updateDaysHint);
+document.getElementById('e-end')?.addEventListener('change',updateDaysHint);
+
+window.closeEditTripModal=(e)=>{
+  if(!e||e.target===e.currentTarget)
+    document.getElementById('edit-trip-modal').classList.remove('show');
+};
+
+window.saveEditTrip=async()=>{
+  const name=v('e-name').trim(),dest=v('e-dest').trim();
+  const start=v('e-start'),end=v('e-end');
+  if(!name||!start||!end){showToast('請填寫名稱與日期');return;}
+  if(new Date(end)<new Date(start)){showToast('回程日期不能早於出發日期');return;}
+  const days=Math.max(1,Math.round((new Date(end)-new Date(start))/86400000)+1);
+  try{
+    await updateDoc(doc(db,'trips',currentTripId),{name,dest,start,end,days});
+    currentTrip={...currentTrip,name,dest,start,end,days};
+    // 更新 header
+    document.getElementById('h-name').textContent=name;
+    document.getElementById('h-sub').textContent=(dest||'')+' · '+start+' ～ '+end;
+    // 重建 day tabs（天數可能改變）
+    buildDayTabs();
+    if(currentDay>days) currentDay=1;
+    renderTimetable();
+    closeEditTripModal();
+    showToast('行程已更新！');
+  }catch(e){
+    showToast('更新失敗：'+e.message);
   }
 };
 
