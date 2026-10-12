@@ -415,6 +415,62 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--border2)
       </div>
     </div>
 
+    <!-- Flights -->
+    <div id="panel-flights" class="panel">
+      <div class="section-pad">
+        <div class="section-title">新增班機</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:4px">可先輸入航班號查詢；查不到時也可以直接手動填寫。</div>
+      </div>
+      <div class="add-form">
+        <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:8px">
+          <input type="text" id="fl-num" placeholder="航班號碼（例：CI100、BR198）" autocomplete="off" />
+          <button class="add-btn" onclick="searchFlight()">查詢航班</button>
+        </div>
+        <div id="fl-search-result" style="margin-bottom:8px"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <div>
+            <div class="field-label">出發地</div>
+            <input type="text" id="fl-from" placeholder="例：TPE" />
+          </div>
+          <div>
+            <div class="field-label">目的地</div>
+            <input type="text" id="fl-to" placeholder="例：NRT" />
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <div>
+            <div class="field-label">出發時間</div>
+            <input type="datetime-local" id="fl-dep" />
+          </div>
+          <div>
+            <div class="field-label">抵達時間</div>
+            <input type="datetime-local" id="fl-arr" />
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <div>
+            <div class="field-label">座位（選填）</div>
+            <input type="text" id="fl-seat" placeholder="例：24A" />
+          </div>
+          <div>
+            <div class="field-label">訂位代號（選填）</div>
+            <input type="text" id="fl-pnr" placeholder="訂位代號" autocomplete="off" />
+          </div>
+        </div>
+        <div class="field-label" style="margin-bottom:6px">行程類型</div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px;font-size:14px">
+          <label><input type="radio" name="fl-type" value="去程" checked style="width:auto;margin-right:4px" />去程</label>
+          <label><input type="radio" name="fl-type" value="回程" style="width:auto;margin-right:4px" />回程</label>
+          <label><input type="radio" name="fl-type" value="轉機" style="width:auto;margin-right:4px" />轉機</label>
+        </div>
+        <button class="add-btn" style="width:100%" onclick="addFlight()">＋ 新增班機</button>
+      </div>
+      <div class="section-pad" style="padding-top:16px">
+        <div class="section-title">班機紀錄</div>
+      </div>
+      <div id="flight-list" style="padding-bottom:24px"></div>
+    </div>
+
   </div>
   <div class="bottom-safe"></div>
 </div>
