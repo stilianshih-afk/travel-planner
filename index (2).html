@@ -1,0 +1,1248 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="旅行規劃">
+<meta name="theme-color" content="#ffffff">
+<title>旅行規劃</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#ffffff;--bg2:#f5f5f0;--bg3:#eeede8;
+  --text:#1a1a1a;--text2:#666;--text3:#999;
+  --border:#e0dfd8;--border2:#c8c7c0;
+  --accent:#1a1a1a;
+  --blue:#185FA5;--blue-bg:#E6F1FB;
+  --green:#3B6D11;--green-bg:#EAF3DE;
+  --amber:#854F0B;--amber-bg:#FAEEDA;
+  --red:#A32D2D;--red-bg:#FCEBEB;
+  --radius:12px;--radius-sm:8px;
+  --shadow:0 1px 4px rgba(0,0,0,.08);
+}
+@media(prefers-color-scheme:dark){
+  :root{
+    --bg:#1c1c1e;--bg2:#2c2c2e;--bg3:#3a3a3c;
+    --text:#f2f2f7;--text2:#aeaeb2;--text3:#636366;
+    --border:#3a3a3c;--border2:#48484a;
+    --blue:#85B7EB;--blue-bg:#0c1f35;
+    --green:#97C459;--green-bg:#1a2a0a;
+    --amber:#EF9F27;--amber-bg:#2a1f05;
+    --red:#F09595;--red-bg:#2a1010;
+  }
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif}
+
+/* Loading */
+#loading{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;gap:12px}
+#loading .icon{font-size:48px}
+#loading p{font-size:14px;color:var(--text2)}
+
+/* Auth screen */
+#auth-screen{position:fixed;inset:0;background:var(--bg2);display:none;flex-direction:column;align-items:center;justify-content:center;padding:32px}
+.auth-card{background:var(--bg);border-radius:16px;padding:32px 24px;width:100%;max-width:360px;text-align:center;box-shadow:var(--shadow)}
+.auth-icon{font-size:48px;margin-bottom:16px}
+.auth-title{font-size:22px;font-weight:700;margin-bottom:6px}
+.auth-sub{font-size:14px;color:var(--text2);margin-bottom:28px;line-height:1.5}
+.google-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:14px;background:#fff;border:1.5px solid #e0e0e0;border-radius:10px;font-size:15px;font-weight:600;color:#3c4043;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.1);transition:box-shadow .15s}
+.google-btn:active{box-shadow:none}
+.google-btn svg{width:20px;height:20px}
+
+/* App layout */
+.app{display:flex;flex-direction:column;height:100vh;max-width:480px;margin:0 auto}
+
+/* Header */
+.header{padding:env(safe-area-inset-top,16px) 16px 0;background:var(--bg);border-bottom:1px solid var(--border);flex-shrink:0}
+.header-inner{display:flex;align-items:flex-start;justify-content:space-between;padding-bottom:12px}
+.header-left{flex:1;min-width:0}
+.trip-name{font-size:19px;font-weight:600;letter-spacing:-.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trip-sub{font-size:12px;color:var(--text2);margin-top:2px}
+.avatar{width:32px;height:32px;border-radius:50%;cursor:pointer;flex-shrink:0;margin-left:10px;margin-top:2px;object-fit:cover;border:1.5px solid var(--border)}
+
+/* Tab bar */
+.tab-bar{display:flex;background:var(--bg);border-bottom:1px solid var(--border);flex-shrink:0}
+.tab-btn{flex:1;padding:10px 4px;text-align:center;cursor:pointer;border:none;background:transparent;color:var(--text2);font-size:11px;font-weight:500;position:relative;transition:color .15s}
+.tab-btn i{display:block;font-size:22px;margin-bottom:2px}
+.tab-btn.active{color:var(--text)}
+.tab-btn.active::after{content:'';position:absolute;bottom:0;left:20%;right:20%;height:2px;background:var(--text);border-radius:1px}
+
+/* Content */
+.content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--bg2)}
+.panel{display:none}
+.panel.active{display:block}
+
+/* Trip list screen */
+#trips-screen{height:100%;display:flex;flex-direction:column}
+.trips-header{padding:env(safe-area-inset-top,16px) 16px 0;background:var(--bg);border-bottom:1px solid var(--border);flex-shrink:0}
+.trips-header-inner{display:flex;align-items:center;justify-content:space-between;padding-bottom:12px}
+.trips-title{font-size:20px;font-weight:700}
+.user-row{display:flex;align-items:center;gap:8px}
+.user-name{font-size:13px;color:var(--text2)}
+.trips-content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px}
+.trip-card{background:var(--bg);border-radius:var(--radius);padding:16px;margin-bottom:12px;box-shadow:var(--shadow);cursor:pointer;active:opacity:.8}
+.trip-card:active{opacity:.75}
+.trip-card-name{font-size:17px;font-weight:600}
+.trip-card-sub{font-size:13px;color:var(--text2);margin-top:3px}
+.trip-card-meta{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.badge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:500;background:var(--bg2);color:var(--text2)}
+.badge-blue{background:var(--blue-bg);color:var(--blue)}
+.new-trip-btn{width:100%;padding:14px;background:var(--text);color:var(--bg);border:none;border-radius:var(--radius-sm);font-size:15px;font-weight:600;cursor:pointer;margin-bottom:12px}
+.new-trip-btn:active{opacity:.75}
+.join-row{display:flex;gap:8px;margin-bottom:16px}
+.join-row input{flex:1;padding:12px 13px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:15px;background:var(--bg2);color:var(--text);font-family:inherit;text-transform:uppercase;letter-spacing:.1em}
+.join-row input:focus{outline:none;border-color:var(--border2)}
+.join-btn{padding:12px 16px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;font-weight:600;cursor:pointer;color:var(--text);white-space:nowrap}
+.join-btn:active{opacity:.75}
+
+/* Setup modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:flex-end;z-index:100}
+.modal-overlay.show{display:flex}
+.modal{background:var(--bg);border-radius:20px 20px 0 0;padding:20px 20px calc(env(safe-area-inset-bottom,16px) + 16px);width:100%;max-height:85vh;overflow-y:auto}
+.modal-handle{width:36px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 16px}
+.modal-title{font-size:18px;font-weight:700;margin-bottom:16px}
+.field{margin-bottom:14px}
+.field-label{font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px}
+input,select,textarea{width:100%;padding:11px 13px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:15px;background:var(--bg2);color:var(--text);font-family:inherit;-webkit-appearance:none;appearance:none}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--border2);background:var(--bg)}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn-primary{width:100%;padding:14px;background:var(--text);color:var(--bg);border:none;border-radius:var(--radius-sm);font-size:16px;font-weight:600;cursor:pointer;margin-top:6px}
+.btn-primary:active{opacity:.75}
+.btn-secondary{width:100%;padding:12px;background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:15px;font-weight:500;cursor:pointer;margin-top:8px}
+.btn-secondary:active{opacity:.75}
+
+/* Day selector */
+.day-scroll{display:flex;gap:8px;padding:10px 16px;overflow-x:auto;scrollbar-width:none;flex-shrink:0;background:var(--bg);border-bottom:1px solid var(--border)}
+.day-scroll::-webkit-scrollbar{display:none}
+.day-chip{padding:7px 14px;border-radius:20px;font-size:13px;font-weight:500;white-space:nowrap;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text2);transition:all .15s}
+.day-chip.active{background:var(--text);color:var(--bg);border-color:transparent}
+
+/* Add form */
+.add-form{background:var(--bg);margin:12px 16px;border-radius:var(--radius);padding:14px;box-shadow:var(--shadow)}
+.add-row{display:flex;gap:8px}
+.add-row input{flex:1}
+.add-btn{padding:11px 16px;background:var(--text);color:var(--bg);border:none;border-radius:var(--radius-sm);font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.add-btn:active{opacity:.75}
+
+/* Timetable */
+.timetable{background:var(--bg);margin:0 16px 16px;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+.tt-item{display:flex;align-items:flex-start;padding:13px 14px;border-bottom:1px solid var(--border);gap:10px}
+.tt-item:last-child{border-bottom:none}
+.tt-time{font-size:12px;font-weight:600;color:var(--text2);min-width:42px;padding-top:1px}
+.tt-dot{width:9px;height:9px;border-radius:50%;background:var(--blue);flex-shrink:0;margin-top:3px}
+.tt-body{flex:1;min-width:0}
+.tt-title{font-size:15px;font-weight:500}
+.tt-note{font-size:13px;color:var(--text2);margin-top:2px}
+.tt-del{padding:4px 10px;border:none;background:transparent;color:var(--red);font-size:20px;cursor:pointer;flex-shrink:0;line-height:1}
+
+/* Expenses */
+.exp-card{background:var(--bg);margin:0 16px 8px;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+.exp-item{display:flex;align-items:center;padding:12px 14px;border-bottom:1px solid var(--border);gap:8px}
+.exp-item:last-child{border-bottom:none}
+.exp-cat{font-size:20px;flex-shrink:0}
+.exp-body{flex:1;min-width:0}
+.exp-title{font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.exp-meta{font-size:12px;color:var(--text2);margin-top:1px}
+.exp-amount{font-size:15px;font-weight:600;text-align:right;flex-shrink:0}
+.exp-cur{font-size:11px;color:var(--text2);font-weight:400}
+.exp-del{padding:4px 10px;border:none;background:transparent;color:var(--red);font-size:20px;cursor:pointer;flex-shrink:0}
+.payer-tag{display:inline-flex;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:500;background:var(--amber-bg);color:var(--amber)}
+
+/* Summary */
+.summary-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px 16px}
+.sum-card{background:var(--bg);border-radius:var(--radius-sm);padding:12px 14px;box-shadow:var(--shadow)}
+.sum-label{font-size:11px;color:var(--text2);font-weight:500}
+.sum-val{font-size:20px;font-weight:700;margin-top:3px}
+
+/* Settlement */
+.settle-card{background:var(--bg);margin:0 16px 16px;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+.settle-row{display:flex;align-items:center;padding:12px 14px;border-bottom:1px solid var(--border);gap:8px}
+.settle-row:last-child{border-bottom:none}
+.settle-from{font-weight:600;font-size:14px;flex-shrink:0}
+.settle-arrow{color:var(--text3);font-size:12px;flex-shrink:0}
+.settle-to{font-size:14px;flex:1}
+.settle-amt{font-size:15px;font-weight:700;color:var(--amber);flex-shrink:0}
+
+/* Split chips */
+.split-wrap{display:flex;flex-wrap:wrap;gap:6px;padding:6px 0 0}
+.split-chip{display:flex;align-items:center;gap:4px;padding:6px 12px;border-radius:20px;border:1px solid var(--border);cursor:pointer;font-size:13px;background:var(--bg2);color:var(--text2);transition:all .15s;user-select:none}
+.split-chip.selected{background:var(--text);color:var(--bg);border-color:transparent}
+
+/* Checklist */
+.check-card{background:var(--bg);margin:0 16px 8px;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+.check-section-label{padding:10px 14px 6px;font-size:12px;font-weight:600;color:var(--text2);background:var(--bg2);border-bottom:1px solid var(--border)}
+.check-item{display:flex;align-items:center;padding:13px 14px;border-bottom:1px solid var(--border);gap:10px}
+.check-item:last-child{border-bottom:none}
+.check-box{width:22px;height:22px;border:2px solid var(--border2);border-radius:6px;flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;background:var(--bg)}
+.check-box.checked{background:var(--green);border-color:var(--green)}
+.check-box.checked::after{content:'✓';color:#fff;font-size:13px;font-weight:700}
+.check-label{flex:1;font-size:15px;cursor:pointer}
+.check-label.done{color:var(--text3);text-decoration:line-through}
+.check-del{padding:4px 10px;border:none;background:transparent;color:var(--red);font-size:20px;cursor:pointer}
+.check-budget{font-size:12px;color:var(--text2);margin-top:1px}
+
+/* Progress */
+.progress-wrap{padding:10px 16px 4px}
+.progress-info{display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:5px}
+.prog-bar{height:5px;background:var(--bg3);border-radius:3px;overflow:hidden}
+.prog-fill{height:100%;background:var(--green);border-radius:3px;transition:width .3s}
+
+/* Sub tabs */
+.sub-tabs{display:flex;background:var(--bg);border-bottom:1px solid var(--border)}
+.sub-tab{flex:1;padding:11px 4px;text-align:center;cursor:pointer;border:none;background:transparent;color:var(--text2);font-size:14px;font-weight:500;position:relative}
+.sub-tab.active{color:var(--text)}
+.sub-tab.active::after{content:'';position:absolute;bottom:0;left:15%;right:15%;height:2px;background:var(--text);border-radius:1px}
+
+/* Section */
+.section-pad{padding:14px 16px 6px}
+.section-title{font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.06em}
+
+/* Invite */
+.invite-bar{background:var(--bg);margin:0 16px 12px;border-radius:var(--radius);padding:12px 14px;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:space-between;gap:10px}
+.invite-code{font-size:22px;font-weight:700;letter-spacing:.15em;color:var(--blue)}
+.invite-label{font-size:11px;color:var(--text2);margin-top:2px}
+.copy-btn{padding:8px 14px;background:var(--blue-bg);color:var(--blue);border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0}
+.copy-btn:active{opacity:.75}
+
+/* Empty */
+.empty{text-align:center;padding:40px 20px;color:var(--text3);font-size:14px}
+.empty-icon{font-size:36px;margin-bottom:8px}
+
+/* Toast */
+.toast{position:fixed;bottom:calc(env(safe-area-inset-bottom,16px) + 16px);left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 20px;border-radius:20px;font-size:14px;font-weight:500;z-index:999;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1}
+
+.bottom-safe{height:env(safe-area-inset-bottom,0px);background:var(--bg);flex-shrink:0}
+.flight-card{background:var(--bg);margin:0 16px 10px;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+.flight-header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border);background:var(--blue-bg)}
+.flight-route{display:flex;align-items:center;gap:8px;font-size:18px;font-weight:700;color:var(--blue)}
+.flight-arrow{color:var(--blue);font-size:14px}
+.flight-body{padding:12px 14px}
+.flight-row{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+.flight-row:last-child{margin-bottom:0}
+.flight-time{font-size:22px;font-weight:700}
+.flight-label{font-size:11px;color:var(--text2);margin-top:2px}
+.flight-mid{text-align:center;flex:1;padding:0 8px}
+.flight-num{font-size:13px;font-weight:600;color:var(--blue)}
+.flight-duration{font-size:11px;color:var(--text2);margin-top:2px}
+.flight-divider{display:flex;align-items:center;gap:4px;margin:4px 0}
+.flight-line{flex:1;height:1px;background:var(--border)}
+.flight-plane{font-size:14px}
+.flight-meta{display:flex;gap:6px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid var(--border)}
+.flight-owner{font-size:12px;color:var(--text2);padding:10px 14px;border-top:1px solid var(--border)}
+.search-result{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);margin-top:6px;overflow:hidden;max-height:200px;overflow-y:auto}
+.search-item{padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;font-size:14px}
+.search-item:last-child{border-bottom:none}
+.search-item:active{background:var(--bg2)}
+.search-item-route{font-weight:600}
+.search-item-sub{font-size:12px;color:var(--text2);margin-top:2px}
+.searching{padding:12px;text-align:center;font-size:13px;color:var(--text2)}
+.member-item{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--border)}
+.member-item:last-child{border-bottom:none}
+.member-avatar{width:36px;height:36px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;color:var(--text2);flex-shrink:0;overflow:hidden}
+.member-avatar img{width:100%;height:100%;object-fit:cover}
+.member-name{flex:1;font-size:15px;font-weight:500}
+.member-role{font-size:11px;color:var(--text2);margin-top:1px}
+.member-del{padding:4px 10px;border:none;background:transparent;color:var(--red);font-size:20px;cursor:pointer}
+.manage-btn{padding:7px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-weight:500;cursor:pointer;color:var(--text);white-space:nowrap}
+.edit-btn{padding:7px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-weight:500;cursor:pointer;color:var(--text);white-space:nowrap}
+.edit-btn:active{opacity:.75}
+.manage-btn:active{opacity:.75}
+</style>
+</head>
+<body>
+
+<!-- Loading -->
+<div id="loading" style="display:flex">
+  <div class="icon">✈️</div>
+  <p>載入中...</p>
+</div>
+
+<!-- Auth screen -->
+<div id="auth-screen" style="display:none">
+  <div class="auth-card">
+    <div class="auth-icon">✈️</div>
+    <div class="auth-title">旅行規劃</div>
+    <div class="auth-sub">登入後即可建立行程、與旅伴共享記帳與清單</div>
+    <button class="google-btn" onclick="signInWithGoogle()">
+      <svg viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+      使用 Google 帳號登入
+    </button>
+    <div id="browser-hint" style="display:none;margin-top:14px;background:#FFF8E6;border:1px solid #F5D87A;border-radius:10px;padding:12px 14px;text-align:left;gap:10px;align-items:flex-start">
+      <span style="font-size:20px;flex-shrink:0">⚠️</span>
+      <div>
+        <div style="font-size:13px;font-weight:600;color:#7A5800;margin-bottom:3px">請用瀏覽器開啟</div>
+        <div style="font-size:12px;color:#9A7010;line-height:1.5">目前在 App 內建瀏覽器，Google 登入無法使用。請點右上角選單，選「用 Safari 開啟」或「用瀏覽器開啟」。</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Trips list screen -->
+<div id="trips-screen" style="display:none">
+  <div class="trips-header">
+    <div class="trips-header-inner">
+      <div class="trips-title">我的旅行</div>
+      <div class="user-row">
+        <span class="user-name" id="user-name-display"></span>
+        <img class="avatar" id="user-avatar" src="" alt="" onclick="signOut()" title="登出" />
+      </div>
+    </div>
+  </div>
+  <div class="trips-content">
+    <button class="new-trip-btn" onclick="showNewTripModal()">＋ 建立新行程</button>
+    <div class="join-row">
+      <input type="text" id="join-code-input" placeholder="輸入邀請碼加入行程" maxlength="6" />
+      <button class="join-btn" onclick="joinTrip()">加入</button>
+    </div>
+    <div id="trips-list"></div>
+  </div>
+</div>
+
+<!-- Main app screen -->
+<div id="main-screen" style="display:none" class="app">
+  <div class="header">
+    <div class="header-inner">
+      <div class="header-left">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="trip-name" id="h-name"></div>
+          <button class="edit-btn" onclick="showEditTripModal()" style="padding:4px 10px;font-size:12px">編輯</button>
+        </div>
+        <div class="trip-sub" id="h-sub"></div>
+      </div>
+      <img class="avatar" id="main-avatar" src="" alt="" onclick="backToTrips()" title="回到行程列表" />
+    </div>
+  </div>
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('itinerary',this)"><i>📅</i>行程</button>
+    <button class="tab-btn" onclick="switchTab('budget',this)"><i>💰</i>記帳</button>
+    <button class="tab-btn" onclick="switchTab('checklist',this)"><i>✅</i>清單</button>
+    <button class="tab-btn" onclick="switchTab('flights',this)"><i>✈️</i>班機</button>
+  </div>
+  <div class="content" id="main-content">
+
+    <!-- Itinerary -->
+    <div id="panel-itinerary" class="panel active">
+      <div class="section-pad" style="padding-bottom:10px">
+        <div id="invite-bar-container"></div>
+      </div>
+      <div class="day-scroll" id="day-scroll"></div>
+      <div class="section-pad"><div class="section-title">新增活動</div></div>
+      <div class="add-form">
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:8px;margin-bottom:8px">
+          <input type="time" id="ev-time" style="width:100px" />
+          <input type="text" id="ev-title" placeholder="地點或活動名稱" />
+        </div>
+        <div class="add-row">
+          <input type="text" id="ev-note" placeholder="備註（可選）" />
+          <button class="add-btn" onclick="addEvent()">新增</button>
+        </div>
+      </div>
+      <div id="timetable-list" style="padding:0 0 16px"></div>
+    </div>
+
+    <!-- Budget -->
+    <div id="panel-budget" class="panel">
+      <div id="budget-summary" class="summary-row"></div>
+      <div class="section-pad"><div class="section-title">新增支出</div></div>
+      <div class="add-form">
+        <div style="margin-bottom:8px"><input type="text" id="exp-title" placeholder="項目名稱（例：拉麵午餐）" /></div>
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-bottom:8px">
+          <input type="number" id="exp-amount" placeholder="金額" inputmode="decimal" />
+          <select id="exp-currency">
+            <option value="TWD">TWD</option><option value="JPY">JPY</option>
+            <option value="USD">USD</option><option value="EUR">EUR</option><option value="KRW">KRW</option>
+          </select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <select id="exp-cat">
+            <option>🍜 餐飲</option><option>🚌 交通</option><option>🏨 住宿</option>
+            <option>🎡 景點</option><option>🛍 購物</option><option>💊 其他</option>
+          </select>
+          <select id="exp-payer"><option value="">付款人</option></select>
+        </div>
+        <div class="field-label" style="font-size:12px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">分擔成員</div>
+        <div id="exp-split" class="split-wrap"></div>
+        <button class="add-btn" style="width:100%;margin-top:12px" onclick="addExpense()">新增支出</button>
+      </div>
+      <div id="expense-list" style="padding:0 0 8px"></div>
+      <div class="section-pad"><div class="section-title">結算試算</div></div>
+      <div id="settlement" style="padding:0 0 24px"></div>
+    </div>
+
+    <!-- Checklist -->
+    <div id="panel-checklist" class="panel">
+      <div class="sub-tabs">
+        <button class="sub-tab active" onclick="switchCheckTab('luggage',this)">🧳 行李清單</button>
+        <button class="sub-tab" onclick="switchCheckTab('shopping',this)">🛒 購物清單</button>
+      </div>
+      <div id="check-luggage">
+        <div class="section-pad"><div class="section-title">新增行李</div></div>
+        <div class="add-form">
+          <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:8px">
+            <input type="text" id="lug-item" placeholder="例：護照、充電器" />
+            <select id="lug-cat" style="width:auto;padding-right:10px">
+              <option>👔 衣物</option><option>📄 證件</option><option>💊 醫藥</option>
+              <option>🔌 電器</option><option>🧴 盥洗</option><option>📦 其他</option>
+            </select>
+          </div>
+          <button class="add-btn" style="width:100%" onclick="addCheck('luggage')">新增項目</button>
+        </div>
+        <div class="progress-wrap">
+          <div class="progress-info"><span id="lug-stat">0 / 0 完成</span></div>
+          <div class="prog-bar"><div class="prog-fill" id="lug-fill" style="width:0%"></div></div>
+        </div>
+        <div id="lug-list" style="padding:8px 0 16px"></div>
+      </div>
+      <div id="check-shopping" style="display:none">
+        <div class="section-pad"><div class="section-title">新增購物</div></div>
+        <div class="add-form">
+          <div style="margin-bottom:8px"><input type="text" id="shop-item" placeholder="例：抹茶零食、藥妝" /></div>
+          <div style="display:grid;grid-template-columns:1fr auto;gap:8px">
+            <input type="number" id="shop-budget" placeholder="預算（可選）" inputmode="decimal" />
+            <button class="add-btn" onclick="addCheck('shopping')">新增</button>
+          </div>
+        </div>
+        <div class="progress-wrap">
+          <div class="progress-info"><span id="shop-stat">0 / 0 完成</span></div>
+          <div class="prog-bar"><div class="prog-fill" id="shop-fill" style="width:0%"></div></div>
+        </div>
+        <div id="shop-list" style="padding:8px 0 24px"></div>
+      </div>
+    </div>
+
+  </div>
+  <div class="bottom-safe"></div>
+</div>
+
+<!-- New trip modal -->
+<div class="modal-overlay" id="new-trip-modal" onclick="closeModal(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">建立新行程</div>
+    <div class="field"><div class="field-label">旅行名稱</div><input type="text" id="m-name" placeholder="例：東京五天四夜" /></div>
+    <div class="field"><div class="field-label">目的地</div><input type="text" id="m-dest" placeholder="例：日本東京" /></div>
+    <div class="field-row">
+      <div class="field"><div class="field-label">出發日期</div><input type="date" id="m-start" /></div>
+      <div class="field"><div class="field-label">回程日期</div><input type="date" id="m-end" /></div>
+    </div>
+    <button class="btn-primary" onclick="createTrip()">建立行程</button>
+    <button class="btn-secondary" onclick="hideNewTripModal()">取消</button>
+  </div>
+</div>
+
+<!-- Members modal -->
+<div class="modal-overlay" id="members-modal" onclick="closeMembersModal(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div class="modal-title" style="margin:0">旅伴管理</div>
+      <span style="font-size:12px;color:var(--text2)" id="members-count"></span>
+    </div>
+    <div id="members-list"></div>
+    <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+      <div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:8px">邀請新旅伴</div>
+      <div style="background:var(--bg2);border-radius:var(--radius-sm);padding:14px;text-align:center">
+        <div style="font-size:28px;font-weight:700;letter-spacing:.15em;color:var(--blue);margin-bottom:4px" id="modal-invite-code"></div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:10px">將此邀請碼分享給旅伴</div>
+        <button class="btn-primary" style="margin:0" onclick="shareInvite()">分享邀請碼</button>
+      </div>
+    </div>
+    <button class="btn-secondary" onclick="document.getElementById('members-modal').classList.remove('show')">關閉</button>
+  </div>
+</div>
+
+<!-- Edit trip modal -->
+<div class="modal-overlay" id="edit-trip-modal" onclick="closeEditTripModal(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">編輯行程</div>
+    <div class="field"><div class="field-label">旅行名稱</div><input type="text" id="e-name" placeholder="例：東京五天四夜" /></div>
+    <div class="field"><div class="field-label">目的地</div><input type="text" id="e-dest" placeholder="例：日本東京" /></div>
+    <div class="field-row">
+      <div class="field"><div class="field-label">出發日期</div><input type="date" id="e-start" /></div>
+      <div class="field"><div class="field-label">回程日期</div><input type="date" id="e-end" /></div>
+    </div>
+    <div id="e-days-hint" style="font-size:12px;color:var(--text2);margin-bottom:8px"></div>
+    <button class="btn-primary" onclick="saveEditTrip()">儲存變更</button>
+    <button class="btn-secondary" onclick="closeEditTripModal()">取消</button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Firebase -->
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, signOut as fbSignOut }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import { getFirestore, doc, collection, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc,
+  onSnapshot, arrayUnion, serverTimestamp, query, where }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyD46Iv3YD95wKm-8K4TdyMpW1O4j28unU4",
+  authDomain: "travelplannerstannn.firebaseapp.com",
+  projectId: "travelplannerstannn",
+  storageBucket: "travelplannerstannn.firebasestorage.app",
+  messagingSenderId: "659382000064",
+  appId: "1:659382000064:web:e4daf53083aefce8e49025"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+let currentUser = null;
+let currentTripId = null;
+let currentTrip = null;
+let currentDay = 1;
+let unsubscribers = [];
+
+// ── Auth ──────────────────────────────────────────
+function isInAppBrowser(){
+  const ua = navigator.userAgent || '';
+  return /Line|FBAN|FBAV|Instagram|Twitter|MicroMessenger|WebView|wv/.test(ua)
+    || ((/iPhone|iPod|iPad/.test(ua)) && !/Safari/.test(ua));
+}
+
+window.signInWithGoogle = async () => {
+  if(isInAppBrowser()){
+    document.getElementById('browser-hint').style.display='flex';
+    return;
+  }
+  try {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({prompt:'select_account'});
+    await signInWithPopup(auth, provider);
+  } catch(e){
+    if(e.code === 'auth/popup-blocked'){
+      // popup 被封鎖，改用 redirect
+      const provider = new GoogleAuthProvider();
+      await signInWithRedirect(auth, provider);
+    } else if(e.code !== 'auth/popup-closed-by-user'){
+      showToast('登入失敗，請用 Safari 或 Chrome 開啟');
+    }
+  }
+};
+
+window.signOut = async () => {
+  if(!confirm('確定要登出嗎？')) return;
+  await fbSignOut(auth);
+};
+
+// 等 redirect 結果處理完再監聽 auth 狀態
+async function initAuth(){
+  try {
+    await getRedirectResult(auth);
+  } catch(e){
+    console.warn('redirect result:', e?.message);
+  }
+  onAuthStateChanged(auth, user => {
+    hide('loading');
+    if(user){
+      currentUser = user;
+      document.getElementById('user-name-display').textContent = user.displayName?.split(' ')?.[0]||''
+      document.getElementById('user-avatar').src = user.photoURL||'';
+      document.getElementById('main-avatar').src = user.photoURL||'';
+      hide('auth-screen');
+      showTripsScreen();
+    } else {
+      currentUser = null;
+      hide('trips-screen');
+      hide('main-screen');
+      show('auth-screen','flex');
+    }
+  });
+}
+initAuth();
+
+// ── Trips list ────────────────────────────────────
+function showTripsScreen(){
+  hide('main-screen');
+  show('trips-screen','flex');
+  loadTrips();
+}
+
+window.backToTrips = () => {
+  unsubscribers.forEach(u=>u());
+  unsubscribers=[];
+  currentTripId=null;currentTrip=null;
+  hide('main-screen');
+  showTripsScreen();
+};
+
+async function loadTrips(){
+  const listEl = document.getElementById('trips-list');
+  listEl.innerHTML = '<div class="empty"><div class="empty-icon">🗺</div>載入中...</div>';
+  const q = query(collection(db,'trips'), where('members','array-contains',currentUser.uid));
+  const snap = await getDocs(q);
+  if(snap.empty){ listEl.innerHTML='<div class="empty"><div class="empty-icon">✈️</div>還沒有行程<br>建立或加入一個吧！</div>'; return; }
+  listEl.innerHTML = '';
+  snap.forEach(d=>{
+    const t = d.data();
+    const card = document.createElement('div');
+    card.className='trip-card';
+    card.innerHTML=`
+      <div class="trip-card-name">${esc(t.name)}</div>
+      <div class="trip-card-sub">${esc(t.dest||'')} ${t.start?'· '+t.start+' ～ '+t.end:''}</div>
+      <div class="trip-card-meta">
+        <span class="badge badge-blue">邀請碼：${t.inviteCode}</span>
+        <span class="badge">${(t.memberNames||[]).length} 人</span>
+        <span class="badge">${t.days||1} 天</span>
+      </div>`;
+    card.onclick=()=>openTrip(d.id,t);
+    listEl.appendChild(card);
+  });
+}
+
+window.showNewTripModal = () => document.getElementById('new-trip-modal').classList.add('show');
+window.hideNewTripModal = () => document.getElementById('new-trip-modal').classList.remove('show');
+window.closeModal = (e) => { if(e.target===e.currentTarget) hideNewTripModal(); };
+
+window.createTrip = async () => {
+  const name=v('m-name'),dest=v('m-dest'),start=v('m-start'),end=v('m-end');
+  if(!name||!start||!end){showToast('請填寫名稱與日期');return;}
+  if(new Date(end)<new Date(start)){showToast('回程日期不能早於出發');return;}
+  const days=Math.max(1,Math.round((new Date(end)-new Date(start))/86400000)+1);
+  const inviteCode=Math.random().toString(36).substring(2,8).toUpperCase();
+  try{
+    const tripRef = await addDoc(collection(db,'trips'),{
+      name,dest,start,end,days,inviteCode,
+      members:[currentUser.uid],
+      memberNames:[currentUser.displayName||currentUser.email],
+      memberPhotos:[currentUser.photoURL||''],
+      createdBy:currentUser.uid,
+      createdAt:serverTimestamp()
+    });
+    // 建立邀請碼索引（公開可讀）
+    await setDoc(doc(db,'inviteCodes',inviteCode),{tripId:tripRef.id});
+    hideNewTripModal();
+    sv('m-name','');sv('m-dest','');sv('m-start','');sv('m-end','');
+    showToast('行程建立成功！');
+    loadTrips();
+  }catch(e){showToast('建立失敗：'+e.message);}
+};
+
+window.joinTrip = async () => {
+  const code=v('join-code-input').trim().toUpperCase();
+  if(!code||code.length<4){showToast('請輸入邀請碼');return;}
+  try{
+    // 先查公開的 inviteCodes collection 取得 tripId
+    const codeDoc=await getDoc(doc(db,'inviteCodes',code));
+    let tripId;
+    if(codeDoc.exists()){
+      tripId=codeDoc.data().tripId;
+    } else {
+      // 舊行程沒有索引：直接查 trips，並自動補寫索引
+      const q=query(collection(db,'trips'),where('inviteCode','==',code));
+      const snap=await getDocs(q);
+      if(snap.empty){showToast('找不到此邀請碼');return;}
+      tripId=snap.docs[0].id;
+      try{ await setDoc(doc(db,'inviteCodes',code),{tripId}); }catch(_){}
+    }
+    // 加入成員後才有權限讀 trip
+    await updateDoc(doc(db,'trips',tripId),{
+      members:arrayUnion(currentUser.uid),
+      memberNames:arrayUnion(currentUser.displayName||currentUser.email),
+      memberPhotos:arrayUnion(currentUser.photoURL||'')
+    });
+    const tripSnap=await getDoc(doc(db,'trips',tripId));
+    const t=tripSnap.data();
+    sv('join-code-input','');
+    showToast('成功加入行程！');
+    openTrip(tripId,t);
+  }catch(e){
+    showToast('加入失敗：'+e.message);
+  }
+};
+
+// ── Open trip ─────────────────────────────────────
+function openTrip(id,data){
+  currentTripId=id;currentTrip=data;currentDay=1;
+  hide('trips-screen');
+  show('main-screen','flex');
+  document.getElementById('h-name').textContent=data.name;
+  document.getElementById('h-sub').textContent=(data.dest||'')+' · '+data.start+' ～ '+data.end;
+  buildDayTabs();
+  updateBudgetUI();
+  renderInviteBar();
+  subscribeAll();
+}
+
+function renderInviteBar(){
+  const isOwner = currentTrip.createdBy === currentUser.uid;
+  document.getElementById('invite-bar-container').innerHTML=`
+    <div class="invite-bar">
+      <div><div class="invite-code">${currentTrip.inviteCode}</div><div class="invite-label">邀請碼 · 分享給旅伴加入</div></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="copy-btn" onclick="copyInvite()">複製</button>
+        <button class="manage-btn" onclick="showMembersModal()">旅伴</button>
+        ${isOwner ? `<button class="manage-btn" style="color:var(--amber);border-color:var(--amber)" onclick="fixInviteCode()">修復邀請碼</button>` : ''}
+      </div>
+    </div>`;
+}
+window.copyInvite=()=>{
+  navigator.clipboard?.writeText(currentTrip.inviteCode).then(()=>showToast('邀請碼已複製！'));
+};
+
+window.showMembersModal=async()=>{
+  document.getElementById('modal-invite-code').textContent = currentTrip.inviteCode;
+  await renderMembersList();
+  document.getElementById('members-modal').classList.add('show');
+};
+
+window.closeMembersModal=(e)=>{
+  if(e.target===e.currentTarget) document.getElementById('members-modal').classList.remove('show');
+};
+
+async function renderMembersList(){
+  // 重新從 Firestore 取最新資料
+  const snap = await getDoc(doc(db,'trips',currentTripId));
+  if(!snap.exists()) return;
+  const data = snap.data();
+  currentTrip = {...currentTrip, ...data};
+
+  const members = data.memberNames || [];
+  const photos = data.memberPhotos || [];
+  const uids = data.members || [];
+  const createdBy = data.createdBy;
+
+  document.getElementById('members-count').textContent = members.length + ' 人';
+  updateBudgetUI();
+
+  const listEl = document.getElementById('members-list');
+  if(!members.length){ listEl.innerHTML='<div class="empty">尚無旅伴</div>'; return; }
+
+  listEl.innerHTML = members.map((name,i)=>{
+    const isOwner = uids[i] === createdBy;
+    const isMe = uids[i] === currentUser.uid;
+    const canDel = !isOwner && (currentUser.uid === createdBy || isMe);
+    const initial = name.charAt(0).toUpperCase();
+    const photo = photos[i];
+    return `<div class="member-item">
+      <div class="member-avatar">${photo ? `<img src="${esc(photo)}" />` : initial}</div>
+      <div style="flex:1">
+        <div class="member-name">${esc(name)}${isMe?' (我)':''}</div>
+        <div class="member-role">${isOwner?'👑 行程建立者':'旅伴'}</div>
+      </div>
+      ${canDel ? `<button class="member-del" onclick="removeMember(${i})">×</button>` : ''}
+    </div>`;
+  }).join('');
+}
+
+window.removeMember=async(idx)=>{
+  const snap = await getDoc(doc(db,'trips',currentTripId));
+  if(!snap.exists()) return;
+  const data = snap.data();
+  const members = [...(data.members||[])];
+  const memberNames = [...(data.memberNames||[])];
+  const memberPhotos = [...(data.memberPhotos||[])];
+  const name = memberNames[idx];
+  if(!confirm(`確定要移除「${name}」嗎？`)) return;
+  members.splice(idx,1);
+  memberNames.splice(idx,1);
+  memberPhotos.splice(idx,1);
+  await updateDoc(doc(db,'trips',currentTripId),{members,memberNames,memberPhotos});
+  currentTrip = {...currentTrip, members, memberNames, memberPhotos};
+  showToast(`已移除 ${name}`);
+  await renderMembersList();
+  updateBudgetUI();
+};
+
+window.shareInvite=()=>{
+  const code = currentTrip.inviteCode;
+  const url = window.location.href;
+  const text = `加入我的旅行「${currentTrip.name}」！
+邀請碼：${code}
+${url}`;
+  if(navigator.share){
+    navigator.share({title:'旅行邀請', text});
+  } else {
+    navigator.clipboard?.writeText(text).then(()=>showToast('已複製邀請訊息！'));
+  }
+};
+
+window.showEditTripModal=()=>{
+  // 只有建立者可以編輯
+  if(currentTrip.createdBy !== currentUser.uid){
+    showToast('只有行程建立者可以編輯');return;
+  }
+  document.getElementById('e-name').value = currentTrip.name||'';
+  document.getElementById('e-dest').value = currentTrip.dest||'';
+  document.getElementById('e-start').value = currentTrip.start||'';
+  document.getElementById('e-end').value = currentTrip.end||'';
+  updateDaysHint();
+  document.getElementById('edit-trip-modal').classList.add('show');
+};
+
+function updateDaysHint(){
+  const s=document.getElementById('e-start').value;
+  const e=document.getElementById('e-end').value;
+  const hint=document.getElementById('e-days-hint');
+  if(s&&e){
+    const days=Math.max(1,Math.round((new Date(e)-new Date(s))/86400000)+1);
+    hint.textContent=`共 ${days} 天`;
+  } else { hint.textContent=''; }
+}
+document.getElementById('e-start')?.addEventListener('change',updateDaysHint);
+document.getElementById('e-end')?.addEventListener('change',updateDaysHint);
+
+window.closeEditTripModal=(e)=>{
+  if(!e||e.target===e.currentTarget)
+    document.getElementById('edit-trip-modal').classList.remove('show');
+};
+
+window.fixInviteCode=async()=>{
+  try{
+    await setDoc(doc(db,'inviteCodes',currentTrip.inviteCode),{tripId:currentTripId});
+    showToast('邀請碼已修復，旅伴現在可以加入了！');
+  }catch(e){
+    showToast('修復失敗：'+e.message);
+  }
+};
+
+window.saveEditTrip=async()=>{
+  const name=v('e-name').trim(),dest=v('e-dest').trim();
+  const start=v('e-start'),end=v('e-end');
+  if(!name||!start||!end){showToast('請填寫名稱與日期');return;}
+  if(new Date(end)<new Date(start)){showToast('回程日期不能早於出發日期');return;}
+  const days=Math.max(1,Math.round((new Date(end)-new Date(start))/86400000)+1);
+  try{
+    await updateDoc(doc(db,'trips',currentTripId),{name,dest,start,end,days});
+    currentTrip={...currentTrip,name,dest,start,end,days};
+    // 更新 header
+    document.getElementById('h-name').textContent=name;
+    document.getElementById('h-sub').textContent=(dest||'')+' · '+start+' ～ '+end;
+    // 重建 day tabs（天數可能改變）
+    buildDayTabs();
+    if(currentDay>days) currentDay=1;
+    renderTimetable();
+    closeEditTripModal();
+    showToast('行程已更新！');
+  }catch(e){
+    showToast('更新失敗：'+e.message);
+  }
+};
+
+function buildDayTabs(){
+  const c=document.getElementById('day-scroll');c.innerHTML='';
+  for(let i=1;i<=currentTrip.days;i++){
+    const d=new Date(currentTrip.start);d.setDate(d.getDate()+i-1);
+    const btn=document.createElement('button');
+    btn.className='day-chip'+(i===1?' active':'');
+    btn.textContent='Day '+i+' ('+(d.getMonth()+1)+'/'+ d.getDate()+')';
+    btn.onclick=(()=>{const day=i;return()=>{
+      currentDay=day;
+      document.querySelectorAll('.day-chip').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      renderTimetable();
+    };})();
+    c.appendChild(btn);
+  }
+}
+
+function updateBudgetUI(){
+  const payer=document.getElementById('exp-payer');
+  payer.innerHTML='<option value="">付款人</option>';
+  (currentTrip.memberNames||[]).forEach((m,i)=>{
+    const o=document.createElement('option');o.value=m;o.textContent=m;payer.appendChild(o);
+  });
+  renderSplitChips();
+}
+
+function renderSplitChips(){
+  const c=document.getElementById('exp-split');
+  const members=currentTrip.memberNames||[];
+  if(!members.length){c.innerHTML='<span style="font-size:13px;color:var(--text3)">尚無旅伴</span>';return;}
+  c.innerHTML=members.map(m=>`<div class="split-chip selected" data-m="${esc(m)}" onclick="this.classList.toggle('selected')">${esc(m)}</div>`).join('');
+}
+
+// ── Firestore realtime ────────────────────────────
+function subscribeAll(){
+  unsubscribers.forEach(u=>u());unsubscribers=[];
+  const base=`trips/${currentTripId}`;
+  unsubscribers.push(
+    onSnapshot(collection(db,base,'events'),()=>renderTimetable()),
+    onSnapshot(collection(db,base,'expenses'),()=>{renderExpenses();calcSettlement();}),
+    onSnapshot(collection(db,base,'luggage'),()=>renderChecklist('luggage')),
+    onSnapshot(collection(db,base,'shopping'),()=>renderChecklist('shopping')),
+    onSnapshot(collection(db,base,'flights'),()=>renderFlights())
+  );
+  renderTimetable();renderExpenses();calcSettlement();
+  renderChecklist('luggage');renderChecklist('shopping');renderFlights();
+}
+
+// ── Timetable ─────────────────────────────────────
+window.addEvent=async()=>{
+  const time=v('ev-time'),title=v('ev-title'),note=v('ev-note');
+  if(!title){showToast('請輸入地點或活動名稱');return;}
+  await addDoc(collection(db,`trips/${currentTripId}/events`),{day:currentDay,time,title,note,createdAt:serverTimestamp()});
+  sv('ev-time','');sv('ev-title','');sv('ev-note','');
+};
+
+window.delEvent=async(id)=>{
+  await deleteDoc(doc(db,`trips/${currentTripId}/events`,id));
+};
+
+async function renderTimetable(){
+  const list=document.getElementById('timetable-list');
+  const snap=await getDocs(collection(db,`trips/${currentTripId}/events`));
+  const evs=[];snap.forEach(d=>evs.push({id:d.id,...d.data()}));
+  const dayEvs=evs.filter(e=>e.day===currentDay).sort((a,b)=>a.time.localeCompare(b.time));
+  if(!dayEvs.length){list.innerHTML='<div class="empty"><div class="empty-icon">🗺</div>今天還沒有行程<br>新增第一個活動吧！</div>';return;}
+  list.innerHTML='<div class="timetable">'+dayEvs.map(ev=>`
+    <div class="tt-item">
+      <div class="tt-time">${ev.time||'--:--'}</div>
+      <div class="tt-dot"></div>
+      <div class="tt-body">
+        <div class="tt-title">${esc(ev.title)}</div>
+        ${ev.note?`<div class="tt-note">${esc(ev.note)}</div>`:''}
+      </div>
+      <button class="tt-del" onclick="delEvent('${ev.id}')">×</button>
+    </div>`).join('')+'</div>';
+}
+
+// ── Expenses ──────────────────────────────────────
+window.addExpense=async()=>{
+  const title=v('exp-title'),amount=parseFloat(v('exp-amount'));
+  const currency=v('exp-currency'),cat=v('exp-cat'),payer=v('exp-payer');
+  if(!title||isNaN(amount)||amount<=0){showToast('請填寫項目名稱與金額');return;}
+  const selected=Array.from(document.querySelectorAll('#exp-split .split-chip.selected')).map(c=>c.dataset.m);
+  const splitWith=selected.length?selected:[...(currentTrip.memberNames||[])];
+  await addDoc(collection(db,`trips/${currentTripId}/expenses`),{title,amount,currency,cat,payer,splitWith,createdAt:serverTimestamp()});
+  sv('exp-title','');sv('exp-amount','');
+  renderSplitChips();
+};
+
+window.delExpense=async(id)=>{
+  await deleteDoc(doc(db,`trips/${currentTripId}/expenses`,id));
+};
+
+async function renderExpenses(){
+  const snap=await getDocs(collection(db,`trips/${currentTripId}/expenses`));
+  const expenses=[];snap.forEach(d=>expenses.push({id:d.id,...d.data()}));
+  const list=document.getElementById('expense-list');
+  const summary=document.getElementById('budget-summary');
+  if(!expenses.length){list.innerHTML='<div class="empty"><div class="empty-icon">💸</div>還沒有支出記錄</div>';summary.innerHTML='';return;}
+  const total=expenses.reduce((s,e)=>s+toTWD(e.amount,e.currency),0);
+  summary.innerHTML=`
+    <div class="sum-card"><div class="sum-label">總支出（折合台幣）</div><div class="sum-val">NT$${fmt(total)}</div></div>
+    <div class="sum-card"><div class="sum-label">支出筆數</div><div class="sum-val">${expenses.length} 筆</div></div>`;
+  list.innerHTML='<div class="exp-card">'+expenses.map(e=>`
+    <div class="exp-item">
+      <div class="exp-cat">${e.cat.split(' ')[0]}</div>
+      <div class="exp-body">
+        <div class="exp-title">${esc(e.title)}</div>
+        <div class="exp-meta">${e.payer?`<span class="payer-tag">${esc(e.payer)}</span> `:''} ${(e.splitWith||[]).join('、')}</div>
+      </div>
+      <div class="exp-amount">${e.amount.toLocaleString()} <span class="exp-cur">${e.currency}</span></div>
+      <button class="exp-del" onclick="delExpense('${e.id}')">×</button>
+    </div>`).join('')+'</div>';
+}
+
+async function calcSettlement(){
+  const snap=await getDocs(collection(db,`trips/${currentTripId}/expenses`));
+  const expenses=[];snap.forEach(d=>expenses.push({id:d.id,...d.data()}));
+  const sc=document.getElementById('settlement');
+  const members=currentTrip.memberNames||[];
+  if(!expenses.length||!members.length){sc.innerHTML='<div class="empty">新增支出後自動計算結算金額</div>';return;}
+  const balance={};members.forEach(m=>balance[m]=0);
+  expenses.forEach(e=>{
+    if(!e.payer||!e.splitWith||!e.splitWith.length)return;
+    const amt=toTWD(e.amount,e.currency),share=amt/e.splitWith.length;
+    if(balance[e.payer]!==undefined)balance[e.payer]+=amt;
+    e.splitWith.forEach(m=>{if(balance[m]!==undefined)balance[m]-=share;});
+  });
+  const cr=Object.entries(balance).filter(([,v])=>v>0.5).sort((a,b)=>b[1]-a[1]).map(([n,v])=>({n,v}));
+  const de=Object.entries(balance).filter(([,v])=>v<-0.5).sort((a,b)=>a[1]-b[1]).map(([n,v])=>({n,v:-v}));
+  const txns=[];let i=0,j=0;
+  while(i<cr.length&&j<de.length){
+    const amt=Math.min(cr[i].v,de[j].v);
+    txns.push({from:de[j].n,to:cr[i].n,amt});
+    cr[i].v-=amt;de[j].v-=amt;
+    if(cr[i].v<0.5)i++;if(de[j].v<0.5)j++;
+  }
+  if(!txns.length){sc.innerHTML='<div class="settle-card"><div style="text-align:center;padding:14px;color:var(--text2);font-size:14px">✅ 費用已平衡，無需結算</div></div>';return;}
+  sc.innerHTML='<div class="settle-card">'+txns.map(t=>`
+    <div class="settle-row">
+      <span class="settle-from">${esc(t.from)}</span>
+      <span class="settle-arrow">→ 需付給 →</span>
+      <span class="settle-to">${esc(t.to)}</span>
+      <span class="settle-amt">NT$${fmt(t.amt)}</span>
+    </div>`).join('')+'</div>';
+}
+
+// ── Checklist ─────────────────────────────────────
+window.addCheck=async(type)=>{
+  if(type==='luggage'){
+    const item=v('lug-item'),cat=v('lug-cat');if(!item)return;
+    await addDoc(collection(db,`trips/${currentTripId}/luggage`),{
+      item,cat,done:false,
+      uid:currentUser.uid,
+      ownerName:currentUser.displayName||currentUser.email,
+      createdAt:serverTimestamp()
+    });
+    sv('lug-item','');
+  } else {
+    const item=v('shop-item'),budget=v('shop-budget');if(!item)return;
+    await addDoc(collection(db,`trips/${currentTripId}/shopping`),{
+      item,budget:budget?parseInt(budget):null,done:false,
+      uid:currentUser.uid,
+      ownerName:currentUser.displayName||currentUser.email,
+      createdAt:serverTimestamp()
+    });
+    sv('shop-item','');sv('shop-budget','');
+  }
+};
+
+window.toggleCheck=async(type,id,done)=>{
+  await updateDoc(doc(db,`trips/${currentTripId}/${type}`,id),{done:!done});
+};
+
+window.delCheck=async(type,id,ownerUid)=>{
+  if(ownerUid && ownerUid !== currentUser.uid){ showToast('只能刪除自己新增的項目'); return; }
+  await deleteDoc(doc(db,`trips/${currentTripId}/${type}`,id));
+};
+
+async function renderChecklist(type){
+  const snap=await getDocs(collection(db,`trips/${currentTripId}/${type}`));
+  const all=[];snap.forEach(d=>all.push({id:d.id,...d.data()}));
+  // 只顯示自己的
+  const arr=all.filter(x=>!x.uid || x.uid===currentUser.uid);
+  const listEl=document.getElementById(type==='luggage'?'lug-list':'shop-list');
+  const fillEl=document.getElementById(type==='luggage'?'lug-fill':'shop-fill');
+  const statEl=document.getElementById(type==='luggage'?'lug-stat':'shop-stat');
+  const done=arr.filter(x=>x.done).length;
+  const pct=arr.length?Math.round(done/arr.length*100):0;
+  fillEl.style.width=pct+'%';
+  statEl.textContent=done+' / '+arr.length+' 完成（'+pct+'%）';
+  if(!arr.length){listEl.innerHTML='<div class="empty"><div class="empty-icon">'+(type==='luggage'?'🧳':'🛒')+'</div>還沒有項目<br>新增屬於你的清單吧！</div>';return;}
+  if(type==='luggage'){
+    const cats={};arr.forEach(x=>{if(!cats[x.cat])cats[x.cat]=[];cats[x.cat].push(x);});
+    listEl.innerHTML=Object.entries(cats).map(([cat,items])=>`
+      <div class="check-card">
+        <div class="check-section-label">${cat}</div>
+        ${items.map(x=>`
+          <div class="check-item">
+            <div class="check-box${x.done?' checked':''}" onclick="toggleCheck('luggage','${x.id}',${x.done})"></div>
+            <div class="check-label${x.done?' done':''}" onclick="toggleCheck('luggage','${x.id}',${x.done})">${esc(x.item)}</div>
+            <button class="check-del" onclick="delCheck('luggage','${x.id}','${x.uid||''}')">×</button>
+          </div>`).join('')}
+      </div>`).join('');
+  } else {
+    listEl.innerHTML='<div class="check-card">'+arr.map(x=>`
+      <div class="check-item">
+        <div class="check-box${x.done?' checked':''}" onclick="toggleCheck('shopping','${x.id}',${x.done})"></div>
+        <div style="flex:1;cursor:pointer" onclick="toggleCheck('shopping','${x.id}',${x.done})">
+          <div class="check-label${x.done?' done':''}">${esc(x.item)}</div>
+          ${x.budget?`<div class="check-budget">預算 NT$${x.budget.toLocaleString()}</div>`:''}
+        </div>
+        <button class="check-del" onclick="delCheck('shopping','${x.id}','${x.uid||''}')">×</button>
+      </div>`).join('')+'</div>';
+  }
+}
+
+// ── UI helpers ────────────────────────────────────
+window.switchTab=(id,el)=>{
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('panel-'+id).classList.add('active');
+  el.classList.add('active');
+};
+window.switchCheckTab=(id,el)=>{
+  document.getElementById('check-luggage').style.display=id==='luggage'?'block':'none';
+  document.getElementById('check-shopping').style.display=id==='shopping'?'block':'none';
+  document.querySelectorAll('.sub-tab').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+};
+
+let toastTimer;
+window.showToast=(msg)=>{
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),2500);
+};
+
+function show(id,display='block'){document.getElementById(id).style.display=display;} function showFlex(id){show(id,'flex');}
+
+// ── Flights ───────────────────────────────────────
+const AVIATION_KEY = '009f5bb27e09b89955816958d2fd582b';
+
+window.searchFlight = async () => {
+  const num = v('fl-num').trim().replace(/\s/g,'');
+  if(!num || num.length < 4){ showToast('請輸入航班號碼'); return; }
+  const resultEl = document.getElementById('fl-search-result');
+  resultEl.innerHTML = '<div class="search-result"><div class="searching">查詢中...</div></div>';
+
+  // 解析航空公司代碼與航班號
+  const iata = num.match(/^[A-Z]{2}/)?.[0] || '';
+  const flightNum = num.replace(/^[A-Z]{2}/,'');
+
+  // 取今天日期
+  const today = new Date();
+  const dateStr = today.toISOString().split('T')[0];
+
+  try {
+    const res = await fetch(
+      `https://api.aviationstack.com/v1/flightsFuture?access_key=${AVIATION_KEY}&iata_code=${iata}&flight_number=${flightNum}&date=${dateStr}&limit=5`
+    );
+    const data = await res.json();
+    if(data.error){ throw new Error(data.error.message); }
+    const flights = data.data || [];
+    if(!flights.length){
+      resultEl.innerHTML = '<div class="search-result"><div class="searching">找不到航班，請手動填寫</div></div>';
+      return;
+    }
+    resultEl.innerHTML = '<div class="search-result">' + flights.map((f,i) => {
+      const dep = f.departure?.scheduled ? new Date(f.departure.scheduled) : null;
+      const arr = f.arrival?.scheduled ? new Date(f.arrival.scheduled) : null;
+      const depStr = dep ? dep.toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '--';
+      const arrStr = arr ? arr.toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '--';
+      return `<div class="search-item" onclick="fillFlight(${i})">
+        <div class="search-item-route">${f.departure?.iata||'?'} → ${f.arrival?.iata||'?'} &nbsp; <span style="color:var(--blue)">${f.flight?.iata||num}</span></div>
+        <div class="search-item-sub">${depStr} → ${arrStr} &nbsp; ${f.departure?.terminal?'T'+f.departure.terminal:''}</div>
+      </div>`;
+    }).join('') + '</div>';
+    // 存查詢結果供 fillFlight 使用
+    window._flightResults = flights;
+  } catch(e) {
+    resultEl.innerHTML = '<div class="search-result"><div class="searching">查詢失敗，請手動填寫</div></div>';
+    console.error(e);
+  }
+};
+
+window.fillFlight = (idx) => {
+  const f = window._flightResults?.[idx];
+  if(!f) return;
+  sv('fl-num', f.flight?.iata || '');
+  sv('fl-from', f.departure?.iata || '');
+  sv('fl-to', f.arrival?.iata || '');
+  // datetime-local 格式
+  const toLocal = (iso) => {
+    if(!iso) return '';
+    const d = new Date(iso);
+    const pad = n => String(n).padStart(2,'0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+  sv('fl-dep', toLocal(f.departure?.scheduled));
+  sv('fl-arr', toLocal(f.arrival?.scheduled));
+  document.getElementById('fl-search-result').innerHTML = '';
+  showToast('航班資料已帶入！');
+};
+
+window.addFlight = async () => {
+  const num = v('fl-num').trim();
+  const from = v('fl-from').trim();
+  const to = v('fl-to').trim();
+  const dep = v('fl-dep');
+  const arr = v('fl-arr');
+  const seat = v('fl-seat').trim();
+  const pnr = v('fl-pnr').trim();
+  const type = document.querySelector('input[name="fl-type"]:checked')?.value || '去程';
+  if(!num||!from||!to||!dep){ showToast('請填寫航班號、出發地、目的地與出發時間'); return; }
+  await addDoc(collection(db,`trips/${currentTripId}/flights`),{
+    num, from, to, dep, arr, seat, pnr, type,
+    uid: currentUser.uid,
+    ownerName: currentUser.displayName || currentUser.email,
+    createdAt: serverTimestamp()
+  });
+  sv('fl-num',''); sv('fl-from',''); sv('fl-to',''); sv('fl-dep',''); sv('fl-arr','');
+  sv('fl-seat',''); sv('fl-pnr','');
+  document.getElementById('fl-search-result').innerHTML = '';
+  showToast('航班已新增！');
+  renderFlights();
+};
+
+window.delFlight = async (id, ownerUid) => {
+  if(ownerUid && ownerUid !== currentUser.uid){ showToast('只能刪除自己的航班'); return; }
+  await deleteDoc(doc(db,`trips/${currentTripId}/flights`,id));
+  renderFlights();
+};
+
+async function renderFlights(){
+  const snap = await getDocs(collection(db,`trips/${currentTripId}/flights`));
+  const all = []; snap.forEach(d => all.push({id:d.id,...d.data()}));
+  const listEl = document.getElementById('flight-list');
+  if(!all.length){
+    listEl.innerHTML = '<div class="empty"><div class="empty-icon">✈️</div>還沒有航班記錄<br>搜尋航班號新增吧！</div>';
+    return;
+  }
+  // 依 uid 分組、再依 dep 排序
+  const byUser = {};
+  all.forEach(f => {
+    if(!byUser[f.uid]) byUser[f.uid] = {name: f.ownerName, flights:[]};
+    byUser[f.uid].flights.push(f);
+  });
+  Object.values(byUser).forEach(u => u.flights.sort((a,b) => a.dep?.localeCompare(b.dep||'')));
+
+  const fmtDT = (iso) => {
+    if(!iso) return '--';
+    const d = new Date(iso);
+    return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  };
+  const calcDur = (dep, arr) => {
+    if(!dep||!arr) return '';
+    const mins = Math.round((new Date(arr)-new Date(dep))/60000);
+    if(mins <= 0) return '';
+    return `${Math.floor(mins/60)}h${mins%60>0?mins%60+'m':''}`;
+  };
+  const typeColor = {去程:'tag-blue', 回程:'tag-green', 轉機:'tag-amber'};
+
+  listEl.innerHTML = Object.entries(byUser).map(([uid, u]) => {
+    const isMe = uid === currentUser.uid;
+    return `<div style="margin-bottom:4px">
+      <div class="section-pad" style="padding-top:12px;padding-bottom:6px">
+        <div class="section-title">${isMe ? '✈ 我的航班' : '✈ ' + esc(u.name) + ' 的航班'}</div>
+      </div>
+      ${u.flights.map(f => `
+        <div class="flight-card">
+          <div class="flight-header">
+            <div class="flight-route">
+              <span>${esc(f.from)}</span>
+              <span class="flight-arrow">→</span>
+              <span>${esc(f.to)}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span class="tag ${typeColor[f.type]||'tag-blue'}">${f.type}</span>
+              ${isMe ? `<button class="check-del" onclick="delFlight('${f.id}','${f.uid||''}')">×</button>` : ''}
+            </div>
+          </div>
+          <div class="flight-body">
+            <div class="flight-row">
+              <div>
+                <div class="flight-time">${fmtDT(f.dep)}</div>
+                <div class="flight-label">${esc(f.from)} 出發</div>
+              </div>
+              <div class="flight-mid">
+                <div class="flight-num">${esc(f.num)}</div>
+                ${calcDur(f.dep,f.arr)?`<div class="flight-duration">${calcDur(f.dep,f.arr)}</div>`:''}
+                <div class="flight-divider"><div class="flight-line"></div><span class="flight-plane">✈</span><div class="flight-line"></div></div>
+              </div>
+              <div style="text-align:right">
+                <div class="flight-time">${fmtDT(f.arr)}</div>
+                <div class="flight-label">${esc(f.to)} 抵達</div>
+              </div>
+            </div>
+          </div>
+          ${(f.seat||f.pnr)?`<div class="flight-meta">
+            ${f.seat?`<span class="badge badge-blue">座位 ${esc(f.seat)}</span>`:''}
+            ${f.pnr?`<span class="badge">訂位 ${esc(f.pnr)}</span>`:''}
+          </div>`:''}
+        </div>
+      `).join('')}
+    </div>`;
+  }).join('');
+}
+function hide(id){document.getElementById(id).style.display='none';}
+function v(id){return document.getElementById(id).value;}
+function sv(id,val){document.getElementById(id).value=val;}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function fmt(n){return Math.round(n).toLocaleString();}
+function toTWD(amt,cur){const r={TWD:1,JPY:0.22,USD:32.5,EUR:35,KRW:0.024};return amt*(r[cur]||1);}
+</script>
+</body>
+</html>
