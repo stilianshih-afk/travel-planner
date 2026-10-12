@@ -443,7 +443,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--border2)
         <div class="field-label">查詢機場 IATA 三碼</div>
         <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:8px">
           <input type="text" id="fl-search-airport" placeholder="例：TPE、NRT、KIX" maxlength="3" autocomplete="off" />
-          <button class="add-btn" onclick="searchFlight()">查詢航班</button>
+          <button class="add-btn" id="fl-search-btn" type="button" onclick="searchFlight()">查詢航班</button>
         </div>
         <div id="fl-search-result" style="margin-bottom:8px"></div>
         <div style="font-size:12px;color:var(--text2);margin:4px 0 12px">查詢機場是搜尋條件；查詢結果選取後，會自動填入下方出發地、目的地及時間。</div>
@@ -478,15 +478,22 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--border2)
           </div>
         </div>
         <div class="field-label" style="margin-bottom:6px">行程類型</div>
-        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px;font-size:14px">
-          <label><input type="radio" name="fl-type" value="去程" checked style="width:auto;margin-right:4px" />去程</label>
-          <label><input type="radio" name="fl-type" value="回程" style="width:auto;margin-right:4px" />回程</label>
-          <label><input type="radio" name="fl-type" value="轉機" style="width:auto;margin-right:4px" />轉機</label>
-        </div>
+        <select id="fl-type" style="width:100%;margin-bottom:12px">
+          <option value="去程" selected>去程</option>
+          <option value="回程">回程</option>
+          <option value="轉機">轉機</option>
+        </select>
         <button class="add-btn" style="width:100%" onclick="addFlight()">＋ 新增班機</button>
       </div>
       <div class="section-pad" style="padding-top:16px">
-        <div class="section-title">班機紀錄</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+          <div class="section-title">班機紀錄</div>
+          <select id="flight-owner-filter" onchange="filterFlightsByOwner()" style="width:auto;min-width:150px;padding:8px 10px">
+            <option value="all">所有旅伴班機</option>
+            <option value="mine">只看我的班機</option>
+          </select>
+        </div>
+        <div id="flight-owner-buttons" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>
       </div>
       <div id="flight-list" style="padding-bottom:24px"></div>
     </div>
@@ -1234,6 +1241,7 @@ window.searchFlight = async () => {
   const searchDate = v('fl-search-date');
   const searchType = v('fl-search-type') || 'departure';
   const resultEl = document.getElementById('fl-search-result');
+  const searchBtn = document.getElementById('fl-search-btn');
 
   if (!/^[A-Z]{2,3}\d{1,4}[A-Z]?$/.test(num)) {
     showToast('請輸入航班號，例如 CI100 或 BR198');
@@ -1248,6 +1256,12 @@ window.searchFlight = async () => {
     return;
   }
 
+  if (searchBtn?.dataset.loading === '1') return;
+  if (searchBtn) {
+    searchBtn.dataset.loading = '1';
+    searchBtn.disabled = true;
+    searchBtn.textContent = '查詢中…';
+  }
   resultEl.innerHTML = '<div class="search-result"><div class="searching">查詢中...</div></div>';
   const airline = num.match(/^[A-Z]{2,3}/)?.[0] || '';
   const flightNumber = num.replace(/^[A-Z]{2,3}/,'');
@@ -1356,8 +1370,28 @@ window.searchFlight = async () => {
     const safe = msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     resultEl.innerHTML = `<div class="search-result"><div class="searching" style="white-space:normal">查詢失敗：${safe}<br><small>請核對 API Key、方案端點權限及剩餘呼叫額度。</small></div></div>`;
     console.error('Aviationstack search error:', e);
+  } finally {
+    if (searchBtn) {
+      searchBtn.dataset.loading = '0';
+      searchBtn.disabled = false;
+      searchBtn.textContent = '查詢航班';
+    }
   }
 };
+
+// 修改查詢條件時清除舊結果，讓使用者可直接查下一班，不必重新整理。
+['fl-num','fl-search-date','fl-search-airport','fl-search-type'].forEach(id => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener('input', () => {
+    const result = document.getElementById('fl-search-result');
+    if (result) result.innerHTML = '';
+  });
+  el.addEventListener('change', () => {
+    const result = document.getElementById('fl-search-result');
+    if (result) result.innerHTML = '';
+  });
+});
 
 window.fillFlight = (idx) => {
   const f = window._flightResults?.[idx];
@@ -1386,7 +1420,7 @@ window.addFlight = async () => {
   const arr = v('fl-arr');
   const seat = v('fl-seat').trim();
   const pnr = v('fl-pnr').trim();
-  const type = document.querySelector('input[name="fl-type"]:checked')?.value || '去程';
+  const type = v('fl-type') || '去程';
   if(!num||!from||!to||!dep){ showToast('請填寫航班號、出發地、目的地與出發時間'); return; }
   await addDoc(collection(db,`trips/${currentTripId}/flights`),{
     num, from, to, dep, arr, seat, pnr, type,
@@ -1407,80 +1441,113 @@ window.delFlight = async (id, ownerUid) => {
   renderFlights();
 };
 
+let _allFlightRecords = [];
+
+window.filterFlightsByOwner = (uid) => {
+  const filter = document.getElementById('flight-owner-filter');
+  if (uid) {
+    filter.value = uid;
+  }
+  const selected = filter?.value || 'all';
+  let shown = _allFlightRecords;
+  if (selected === 'mine') {
+    shown = _allFlightRecords.filter(f => f.uid === currentUser.uid);
+  } else if (selected !== 'all') {
+    shown = _allFlightRecords.filter(f => f.uid === selected);
+  }
+  renderFlightRecords(shown);
+};
+
 async function renderFlights(){
+  if (!currentTripId) return;
   const snap = await getDocs(collection(db,`trips/${currentTripId}/flights`));
-  const all = []; snap.forEach(d => all.push({id:d.id,...d.data()}));
+  _allFlightRecords = [];
+  snap.forEach(d => _allFlightRecords.push({id:d.id,...d.data()}));
+
+  // Build filter choices from members' saved flight records.
+  const users = {};
+  _allFlightRecords.forEach(f => {
+    const uid = f.uid || 'unknown';
+    if (!users[uid]) users[uid] = f.ownerName || (uid === currentUser.uid ? '我' : '旅伴');
+  });
+  const btnWrap = document.getElementById('flight-owner-buttons');
+  if (btnWrap) {
+    btnWrap.innerHTML = Object.entries(users).map(([uid, name]) => {
+      const label = uid === currentUser.uid ? '我的班機' : `${esc(name)}的班機`;
+      return `<button type="button" class="manage-btn" onclick="filterFlightsByOwner('${esc(uid)}')">${label}</button>`;
+    }).join('');
+  }
+
+  const filter = document.getElementById('flight-owner-filter');
+  if (filter) {
+    const currentValue = filter.value || 'all';
+    const options = [
+      '<option value="all">所有旅伴班機</option>',
+      '<option value="mine">只看我的班機</option>'
+    ];
+    Object.entries(users).forEach(([uid, name]) => {
+      options.push(`<option value="${esc(uid)}">${uid === currentUser.uid ? '我的班機' : esc(name) + '的班機'}</option>`);
+    });
+    filter.innerHTML = options.join('');
+    filter.value = [...filter.options].some(o => o.value === currentValue) ? currentValue : 'all';
+  }
+
+  window.filterFlightsByOwner();
+}
+
+function renderFlightRecords(records) {
   const listEl = document.getElementById('flight-list');
-  if(!all.length){
-    listEl.innerHTML = '<div class="empty"><div class="empty-icon">✈️</div>還沒有航班記錄<br>搜尋航班號新增吧！</div>';
+  if (!records.length) {
+    const selected = document.getElementById('flight-owner-filter')?.value || 'all';
+    listEl.innerHTML = selected === 'all'
+      ? '<div class="empty"><div class="empty-icon">✈️</div>還沒有航班記錄<br>新增第一筆班機吧！</div>'
+      : '<div class="empty"><div class="empty-icon">✈️</div>這位旅伴目前沒有班機記錄</div>';
     return;
   }
-  // 依 uid 分組、再依 dep 排序
+
+  const sorted = [...records].sort((a,b) => (a.dep || '').localeCompare(b.dep || ''));
   const byUser = {};
-  all.forEach(f => {
-    if(!byUser[f.uid]) byUser[f.uid] = {name: f.ownerName, flights:[]};
-    byUser[f.uid].flights.push(f);
+  sorted.forEach(f => {
+    const uid = f.uid || 'unknown';
+    if (!byUser[uid]) byUser[uid] = {name: f.ownerName || (uid === currentUser.uid ? '我' : '旅伴'), flights: []};
+    byUser[uid].flights.push(f);
   });
-  Object.values(byUser).forEach(u => u.flights.sort((a,b) => a.dep?.localeCompare(b.dep||'')));
 
   const fmtDT = (iso) => {
-    if(!iso) return '--';
+    if (!iso) return '--';
     const d = new Date(iso);
-    return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    if (isNaN(d)) return iso;
+    return d.toLocaleString('zh-TW', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
   };
-  const calcDur = (dep, arr) => {
-    if(!dep||!arr) return '';
-    const mins = Math.round((new Date(arr)-new Date(dep))/60000);
-    if(mins <= 0) return '';
-    return `${Math.floor(mins/60)}h${mins%60>0?mins%60+'m':''}`;
-  };
-  const typeColor = {去程:'tag-blue', 回程:'tag-green', 轉機:'tag-amber'};
 
-  listEl.innerHTML = Object.entries(byUser).map(([uid, u]) => {
-    const isMe = uid === currentUser.uid;
-    return `<div style="margin-bottom:4px">
-      <div class="section-pad" style="padding-top:12px;padding-bottom:6px">
-        <div class="section-title">${isMe ? '✈ 我的航班' : '✈ ' + esc(u.name) + ' 的航班'}</div>
-      </div>
+  listEl.innerHTML = Object.values(byUser).map(u => {
+    const isMine = u.flights[0]?.uid === currentUser.uid;
+    return `<div class="section-pad" style="padding-top:12px">
+      <div style="font-weight:700;margin-bottom:10px">${isMine ? '我的班機' : esc(u.name) + '的班機'}</div>
       ${u.flights.map(f => `
-        <div class="flight-card">
-          <div class="flight-header">
-            <div class="flight-route">
-              <span>${esc(f.from)}</span>
-              <span class="flight-arrow">→</span>
-              <span>${esc(f.to)}</span>
+        <div class="flight-card" style="border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px;background:var(--surface)">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+            <div>
+              <div style="font-size:16px;font-weight:750">${esc(f.num || '')}</div>
+              <div style="font-size:12px;color:var(--text2);margin-top:4px">${esc(f.type || '去程')}</div>
             </div>
-            <div style="display:flex;align-items:center;gap:6px">
-              <span class="tag ${typeColor[f.type]||'tag-blue'}">${f.type}</span>
-              ${isMe ? `<button class="check-del" onclick="delFlight('${f.id}','${f.uid||''}')">×</button>` : ''}
-            </div>
+            ${f.uid === currentUser.uid ? `<button class="manage-btn" onclick="delFlight('${f.id}','${f.uid}')">刪除</button>` : ''}
           </div>
-          <div class="flight-body">
-            <div class="flight-row">
-              <div>
-                <div class="flight-time">${fmtDT(f.dep)}</div>
-                <div class="flight-label">${esc(f.from)} 出發</div>
-              </div>
-              <div class="flight-mid">
-                <div class="flight-num">${esc(f.num)}</div>
-                ${calcDur(f.dep,f.arr)?`<div class="flight-duration">${calcDur(f.dep,f.arr)}</div>`:''}
-                <div class="flight-divider"><div class="flight-line"></div><span class="flight-plane">✈</span><div class="flight-line"></div></div>
-              </div>
-              <div style="text-align:right">
-                <div class="flight-time">${fmtDT(f.arr)}</div>
-                <div class="flight-label">${esc(f.to)} 抵達</div>
-              </div>
-            </div>
+          <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;margin-top:14px">
+            <div><div style="font-size:18px;font-weight:700">${esc(f.from || '--')}</div><div style="font-size:12px;color:var(--text2)">${fmtDT(f.dep)}</div></div>
+            <div style="color:var(--text2)">→</div>
+            <div style="text-align:right"><div style="font-size:18px;font-weight:700">${esc(f.to || '--')}</div><div style="font-size:12px;color:var(--text2)">${fmtDT(f.arr)}</div></div>
           </div>
-          ${(f.seat||f.pnr)?`<div class="flight-meta">
-            ${f.seat?`<span class="badge badge-blue">座位 ${esc(f.seat)}</span>`:''}
-            ${f.pnr?`<span class="badge">訂位 ${esc(f.pnr)}</span>`:''}
-          </div>`:''}
+          ${(f.seat || f.pnr) ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+            ${f.seat ? `<span class="badge badge-blue">座位 ${esc(f.seat)}</span>` : ''}
+            ${f.pnr ? `<span class="badge">訂位 ${esc(f.pnr)}</span>` : ''}
+          </div>` : ''}
         </div>
       `).join('')}
     </div>`;
   }).join('');
 }
+
 function hide(id){document.getElementById(id).style.display='none';}
 function v(id){return document.getElementById(id).value;}
 function sv(id,val){document.getElementById(id).value=val;}
