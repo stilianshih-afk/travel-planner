@@ -86,6 +86,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .trip-card-name{font-size:17px;font-weight:600}
 .trip-card-sub{font-size:13px;color:var(--text2);margin-top:3px}
 .trip-card-meta{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.trip-card-actions{display:flex;justify-content:flex-end;margin-top:12px}
+.trip-delete-btn{border:1px solid var(--red);color:var(--red);background:transparent;border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer}
+.trip-delete-btn:active{opacity:.7}
 .badge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:500;background:var(--bg2);color:var(--text2)}
 .badge-blue{background:var(--blue-bg);color:var(--blue)}
 .new-trip-btn{width:100%;padding:14px;background:var(--text);color:var(--bg);border:none;border-radius:var(--radius-sm);font-size:15px;font-weight:600;cursor:pointer;margin-bottom:12px}
@@ -589,14 +592,59 @@ async function loadTrips(){
       <div class="trip-card-name">${esc(t.name)}</div>
       <div class="trip-card-sub">${esc(t.dest||'')} ${t.start?'· '+t.start+' ～ '+t.end:''}</div>
       <div class="trip-card-meta">
-        <span class="badge badge-blue">邀請碼：${t.inviteCode}</span>
+        <span class="badge badge-blue">邀請碼：${esc(t.inviteCode||'')}</span>
         <span class="badge">${(t.memberNames||[]).length} 人</span>
         <span class="badge">${t.days||1} 天</span>
-      </div>`;
+      </div>
+      ${t.createdBy===currentUser.uid ? '<div class="trip-card-actions"><button class="trip-delete-btn" type="button">刪除行程</button></div>' : ''}`;
     card.onclick=()=>openTrip(d.id,t);
+    const deleteBtn=card.querySelector('.trip-delete-btn');
+    if(deleteBtn){
+      deleteBtn.onclick=(e)=>{e.stopPropagation();deleteTrip(d.id,t);};
+    }
     listEl.appendChild(card);
   });
 }
+
+// 僅建立者可刪除行程；先刪除子集合與邀請碼索引，再刪除主文件。
+window.deleteTrip = async (tripId, tripData) => {
+  if(!currentUser || tripData.createdBy !== currentUser.uid){
+    showToast('只有行程建立者可以刪除行程');
+    return;
+  }
+  const tripName=tripData.name||'這個行程';
+  if(!confirm(`確定要永久刪除「${tripName}」嗎？\n行程、活動、記帳、清單與班機資料都會刪除，且無法復原。`)) return;
+  try{
+    const subcollections=['events','expenses','luggage','shopping','flights'];
+    for(const sub of subcollections){
+      const snap=await getDocs(collection(db,`trips/${tripId}/${sub}`));
+      for(const item of snap.docs){
+        await deleteDoc(doc(db,`trips/${tripId}/${sub}`,item.id));
+      }
+    }
+    // 刪除索引需配合下方提供的 Firestore Rules 修改。
+    if(tripData.inviteCode){
+      const codeRef=doc(db,'inviteCodes',String(tripData.inviteCode).trim().toUpperCase());
+      const codeSnap=await getDoc(codeRef);
+      if(codeSnap.exists() && codeSnap.data().tripId===tripId){
+        await deleteDoc(codeRef);
+      }
+    }
+    await deleteDoc(doc(db,'trips',tripId));
+    if(currentTripId===tripId){
+      unsubscribers.forEach(u=>u());
+      unsubscribers=[];
+      currentTripId=null;currentTrip=null;
+      hide('main-screen');
+      show('trips-screen','flex');
+    }
+    showToast('行程已刪除');
+    await loadTrips();
+  }catch(e){
+    console.error('刪除行程失敗：',e);
+    showToast('刪除失敗：'+(e.code||e.message||'未知錯誤'));
+  }
+};
 
 window.showNewTripModal = () => document.getElementById('new-trip-modal').classList.add('show');
 window.hideNewTripModal = () => document.getElementById('new-trip-modal').classList.remove('show');
@@ -636,12 +684,10 @@ window.joinTrip = async () => {
     if(codeDoc.exists()){
       tripId=codeDoc.data().tripId;
     } else {
-      // 舊行程沒有索引：直接查 trips，並自動補寫索引
-      const q=query(collection(db,'trips'),where('inviteCode','==',code));
-      const snap=await getDocs(q);
-      if(snap.empty){showToast('找不到此邀請碼');return;}
-      tripId=snap.docs[0].id;
-      try{ await setDoc(doc(db,'inviteCodes',code),{tripId}); }catch(_){}
+      // trips 的讀取規則只允許既有成員，因此不能用 inviteCode 查詢 trips。
+      // 舊行程需由建立者開啟行程，讓程式補建 inviteCodes 索引。
+      showToast('此邀請碼尚未建立索引，請行程建立者開啟行程後再試');
+      return;
     }
     // 加入成員後才有權限讀 trip
     await updateDoc(doc(db,'trips',tripId),{
@@ -662,6 +708,18 @@ window.joinTrip = async () => {
 // ── Open trip ─────────────────────────────────────
 function openTrip(id,data){
   currentTripId=id;currentTrip=data;currentDay=1;
+
+  // 舊行程可能沒有 inviteCodes 索引。
+  // 只有建立者能補建，且只在索引不存在時建立，避免觸發禁止的 update 規則。
+  if(currentUser && data.createdBy===currentUser.uid && data.inviteCode){
+    const codeRef=doc(db,'inviteCodes',String(data.inviteCode).trim().toUpperCase());
+    getDoc(codeRef).then(codeSnap=>{
+      if(!codeSnap.exists()){
+        return setDoc(codeRef,{tripId:id});
+      }
+    }).catch(e=>console.warn('邀請碼索引補建失敗：',e));
+  }
+
   hide('trips-screen');
   show('main-screen','flex');
   document.getElementById('h-name').textContent=data.name;
@@ -797,10 +855,23 @@ window.closeEditTripModal=(e)=>{
 
 window.fixInviteCode=async()=>{
   try{
-    await setDoc(doc(db,'inviteCodes',currentTrip.inviteCode),{tripId:currentTripId});
-    showToast('邀請碼已修復，旅伴現在可以加入了！');
+    const code=String(currentTrip.inviteCode||'').trim().toUpperCase();
+    if(!code){showToast('此行程沒有邀請碼，請先確認行程資料');return;}
+    const codeRef=doc(db,'inviteCodes',code);
+    const codeSnap=await getDoc(codeRef);
+    if(codeSnap.exists()){
+      if(codeSnap.data().tripId===currentTripId){
+        showToast('邀請碼索引已存在，可以請旅伴再試一次');
+      }else{
+        showToast('此邀請碼索引已被其他行程使用，需檢查資料');
+      }
+      return;
+    }
+    await setDoc(codeRef,{tripId:currentTripId});
+    showToast('邀請碼已修復，請旅伴再試一次！');
   }catch(e){
-    showToast('修復失敗：'+e.message);
+    console.error('修復邀請碼失敗：',e);
+    showToast('修復失敗：'+(e.code||e.message));
   }
 };
 
