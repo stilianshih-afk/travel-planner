@@ -422,11 +422,31 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--border2)
         <div style="font-size:12px;color:var(--text2);margin-top:4px">可先輸入航班號查詢；查不到時也可以直接手動填寫。</div>
       </div>
       <div class="add-form">
+        <div style="font-size:13px;line-height:1.6;color:var(--text2);margin-bottom:10px">
+          操作流程：① 輸入航班號 ② 選擇航班日期 ③ 輸入查詢機場三碼代碼 ④ 查詢。未來航班請選明天起的日期。
+        </div>
+        <div class="field-label">1. 航班號碼</div>
+        <input type="text" id="fl-num" placeholder="例：CI100、BR198（航空公司代碼＋數字）" autocomplete="off" style="margin-bottom:10px" />
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+          <div>
+            <div class="field-label">2. 查詢日期</div>
+            <input type="date" id="fl-search-date" />
+          </div>
+          <div>
+            <div class="field-label">3. 查詢方向</div>
+            <select id="fl-search-type" style="width:100%;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text)">
+              <option value="departure">從出發機場查詢</option>
+              <option value="arrival">從抵達機場查詢</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-label">查詢機場 IATA 三碼</div>
         <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:8px">
-          <input type="text" id="fl-num" placeholder="航班號碼（例：CI100、BR198）" autocomplete="off" />
+          <input type="text" id="fl-search-airport" placeholder="例：TPE、NRT、KIX" maxlength="3" autocomplete="off" />
           <button class="add-btn" onclick="searchFlight()">查詢航班</button>
         </div>
         <div id="fl-search-result" style="margin-bottom:8px"></div>
+        <div style="font-size:12px;color:var(--text2);margin:4px 0 12px">查詢機場是搜尋條件；查詢結果選取後，會自動填入下方出發地、目的地及時間。</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
           <div>
             <div class="field-label">出發地</div>
@@ -1199,27 +1219,52 @@ function show(id,display='block'){document.getElementById(id).style.display=disp
 // ── Flights ───────────────────────────────────────
 const AVIATION_KEY = '009f5bb27e09b89955816958d2fd582b';
 
+// 預設查詢日期為明天，避免未來班表端點收到今天的日期。
+(function initFlightSearchFields() {
+  const input = document.getElementById('fl-search-date');
+  if (!input || input.value) return;
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  input.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+})();
+
 window.searchFlight = async () => {
   const num = v('fl-num').trim().toUpperCase().replace(/\s/g,'');
-  if(!/^[A-Z0-9]{4,10}$/.test(num)){
-    showToast('請輸入有效航班號，例如 CI100 或 BR198');
+  const airport = (v('fl-search-airport') || '').trim().toUpperCase();
+  const searchDate = v('fl-search-date');
+  const searchType = v('fl-search-type') || 'departure';
+  const resultEl = document.getElementById('fl-search-result');
+
+  if (!/^[A-Z]{2,3}\d{1,4}[A-Z]?$/.test(num)) {
+    showToast('請輸入航班號，例如 CI100 或 BR198');
+    return;
+  }
+  if (!/^[A-Z]{3}$/.test(airport)) {
+    showToast('請輸入查詢機場的 IATA 三碼，例如 TPE');
+    return;
+  }
+  if (!searchDate) {
+    showToast('請先選擇航班日期');
     return;
   }
 
-  const resultEl = document.getElementById('fl-search-result');
   resultEl.innerHTML = '<div class="search-result"><div class="searching">查詢中...</div></div>';
-  const airline = num.match(/^[A-Z]{2}/)?.[0] || '';
-  const flightNumber = num.replace(/^[A-Z]{2}/,'');
-  const fromCode = (v('fl-from') || '').trim().toUpperCase();
-  const depValue = v('fl-dep');
-  const dateStr = depValue ? depValue.slice(0,10) : '';
+  const airline = num.match(/^[A-Z]{2,3}/)?.[0] || '';
+  const flightNumber = num.replace(/^[A-Z]{2,3}/,'');
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
 
   const apiUrl = (path, params) => {
     const q = new URLSearchParams({access_key: AVIATION_KEY, ...params});
     return `https://api.aviationstack.com/v1/${path}?${q.toString()}`;
   };
   const getJson = async (url) => {
-    const res = await fetch(url);
+    let res;
+    try {
+      res = await fetch(url);
+    } catch (_) {
+      throw new Error('網路請求失敗或瀏覽器阻擋跨來源請求（CORS）。請確認網路，並檢查 Console。');
+    }
     let data;
     try { data = await res.json(); }
     catch (_) { throw new Error(`API 回傳非 JSON（HTTP ${res.status}）`); }
@@ -1230,79 +1275,86 @@ window.searchFlight = async () => {
     }
     return data;
   };
-  const normalizeFuture = (f) => ({
-    ...f,
-    flight: { ...(f.flight || {}), iata: f.flight?.iata || (airline ? airline + flightNumber : num) },
-    departure: {
-      ...(f.departure || {}),
-      iata: f.departure?.iata || f.departure?.iataCode || '',
-      scheduled: f.departure?.scheduled || f.departure?.scheduledTime || ''
-    },
-    arrival: {
-      ...(f.arrival || {}),
-      iata: f.arrival?.iata || f.arrival?.iataCode || '',
-      scheduled: f.arrival?.scheduled || f.arrival?.scheduledTime || ''
-    }
-  });
+  const norm = (f) => {
+    const dep = f.departure || {};
+    const arr = f.arrival || {};
+    return {
+      ...f,
+      flight: { ...(f.flight || {}), iata: f.flight?.iata || f.flight?.iataNumber || num },
+      departure: {
+        ...dep,
+        iata: dep.iata || dep.iataCode || '',
+        scheduled: dep.scheduled || dep.scheduledTime || ''
+      },
+      arrival: {
+        ...arr,
+        iata: arr.iata || arr.iataCode || '',
+        scheduled: arr.scheduled || arr.scheduledTime || ''
+      }
+    };
+  };
 
   try {
     let flights = [];
-    let firstError = null;
+    let apiError = null;
 
-    // 先查當日航班；此端點使用 flight_iata，而不是 iata_code。
-    try {
-      const live = await getJson(apiUrl('flights', {flight_iata: num, limit: '10'}));
-      flights = (live.data || []).map(f => f);
-    } catch (e) {
-      firstError = e;
-    }
-
-    // 當日查不到，且使用者已填出發機場 IATA 與出發日期時，再查未來時刻表。
-    if (!flights.length && /^[A-Z]{3}$/.test(fromCode) && dateStr) {
-      try {
-        const futureParams = {
-          iataCode: fromCode,
-          type: 'departure',
-          date: dateStr,
-          limit: '100'
-        };
-        if (airline) futureParams.airline_iata = airline;
-        if (flightNumber) futureParams.flight_number = flightNumber;
-        const future = await getJson(apiUrl('flightsFuture', futureParams));
-        flights = (future.data || []).map(normalizeFuture).filter(f => {
-          const found = String(f.flight?.iata || '').toUpperCase().replace(/\s/g,'');
-          return found === num || (found.endsWith(flightNumber) && (!airline || found.startsWith(airline)));
-        });
-      } catch (e) {
-        if (!firstError) firstError = e;
+    if (searchDate > todayStr) {
+      // Future schedules: Aviationstack requires airport, direction and date.
+      const futureParams = {
+        iataCode: airport,
+        type: searchType,
+        date: searchDate,
+        limit: '100'
+      };
+      if (airline) futureParams.airline_iata = airline;
+      const future = await getJson(apiUrl('flightsFuture', futureParams));
+      flights = (future.data || []).map(norm).filter(f => {
+        const found = String(f.flight?.iata || '').toUpperCase().replace(/\s/g,'');
+        const foundAirline = found.match(/^[A-Z]{2,3}/)?.[0] || '';
+        const foundNum = found.replace(/^[A-Z]{2,3}/,'');
+        return found === num || (foundNum === flightNumber && foundAirline === airline);
+      });
+      if (!flights.length) {
+        resultEl.innerHTML = '<div class="search-result"><div class="searching" style="white-space:normal">API 查詢成功，但該日期與機場沒有符合的航班。請確認日期、機場三碼及航班號；未來班表的可查日期也可能受方案限制。</div></div>';
+        return;
       }
-    }
-
-    if (!flights.length) {
-      const needsFutureInputs = !(/^[A-Z]{3}$/.test(fromCode) && dateStr);
-      const detail = firstError ? `API 錯誤：${firstError.message}` :
-        (needsFutureInputs
-          ? '當日航班查無資料。若要查未來班機，請先在「出發地」填 3 碼機場代碼（例如 TPE），並在「出發時間」選擇日期後再查詢。'
-          : 'API 有回應，但沒有符合此航班號與日期的資料。請確認航班號、出發機場代碼及日期。');
-      resultEl.innerHTML = `<div class="search-result"><div class="searching" style="white-space:normal">${detail.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div></div>`;
-      return;
+    } else {
+      // Current/past date: use flights endpoint with official filter names.
+      const liveParams = {
+        flight_iata: num,
+        flight_date: searchDate,
+        limit: '100'
+      };
+      if (searchType === 'departure') liveParams.dep_iata = airport;
+      else liveParams.arr_iata = airport;
+      const live = await getJson(apiUrl('flights', liveParams));
+      flights = (live.data || []).map(norm).filter(f => {
+        const found = String(f.flight?.iata || '').toUpperCase().replace(/\s/g,'');
+        return found === num;
+      });
+      if (!flights.length) {
+        resultEl.innerHTML = '<div class="search-result"><div class="searching" style="white-space:normal">API 查詢成功，但沒有符合的航班資料。即時／過去航班的可查範圍依 Aviationstack 方案而定；可改選未來日期查詢班表。</div></div>';
+        return;
+      }
     }
 
     window._flightResults = flights;
     resultEl.innerHTML = '<div class="search-result">' + flights.map((f,i) => {
-      const dep = f.departure?.scheduled ? new Date(f.departure.scheduled) : null;
-      const arr = f.arrival?.scheduled ? new Date(f.arrival.scheduled) : null;
+      const dep = f.departure?.scheduled ? new Date(f.departure.scheduled.replace(' ', 'T')) : null;
+      const arr = f.arrival?.scheduled ? new Date(f.arrival.scheduled.replace(' ', 'T')) : null;
       const depStr = dep && !isNaN(dep) ? dep.toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '--';
       const arrStr = arr && !isNaN(arr) ? arr.toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '--';
-      const depIata = f.departure?.iata || f.departure?.iataCode || '?';
-      const arrIata = f.arrival?.iata || f.arrival?.iataCode || '?';
+      const depIata = f.departure?.iata || '?';
+      const arrIata = f.arrival?.iata || '?';
       return `<div class="search-item" onclick="fillFlight(${i})">
         <div class="search-item-route">${depIata} → ${arrIata} &nbsp; <span style="color:var(--blue)">${f.flight?.iata||num}</span></div>
         <div class="search-item-sub">${depStr} → ${arrStr} &nbsp; ${f.departure?.terminal?'T'+f.departure.terminal:''}</div>
       </div>`;
     }).join('') + '</div>';
   } catch(e) {
-    resultEl.innerHTML = `<div class="search-result"><div class="searching" style="white-space:normal">查詢失敗：${String(e.message || e).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div></div>`;
+    const msg = String(e.message || e);
+    const safe = msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    resultEl.innerHTML = `<div class="search-result"><div class="searching" style="white-space:normal">查詢失敗：${safe}<br><small>請核對 API Key、方案端點權限及剩餘呼叫額度。</small></div></div>`;
     console.error('Aviationstack search error:', e);
   }
 };
